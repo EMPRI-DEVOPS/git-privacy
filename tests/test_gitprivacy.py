@@ -49,6 +49,8 @@ class TestGitPrivacy(unittest.TestCase):
         )
         if res != 0:
             raise RuntimeError("Commit failed %s" % stderr)
+        # make sure there are no rewrites logged during normal commits
+        self.assertNotIn("redate-rewrites", stderr)
         # return a copy to avoid errors caused by the fazy loading of the
         # Commit object which in combination with git-filter-repo's eager
         # pruning results in failed lookups of no longer existing hashes
@@ -250,7 +252,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output, os.linesep.join(
                 f"Installed {hook} hook"
-                for hook in ["post-commit", "pre-commit"]
+                for hook in ["post-commit", "pre-commit", "post-rewrite"]
             ) + os.linesep)
             self.assertTrue(os.access(os.path.join(".git", "hooks", "post-commit"),
                                       os.R_OK | os.X_OK))
@@ -268,7 +270,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output, os.linesep.join(
                 f"Installed {hook} hook"
-                for hook in ["post-commit", "pre-commit"]
+                for hook in ["post-commit", "pre-commit", "post-rewrite"]
             ) + os.linesep)
             self.assertTrue(os.access(os.path.join(".git", "hooks", "post-commit"),
                                       os.R_OK | os.X_OK))
@@ -611,7 +613,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output, os.linesep.join(
                 f"Installed {hook} hook"
-                for hook in ["post-commit", "pre-commit"]
+                for hook in ["post-commit", "pre-commit", "post-rewrite"]
             ) + os.linesep)
             # local Git repo initialised BEFORE global template was set up
             # hence the hooks are not present and active locally yet
@@ -706,6 +708,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(_log(), ["b", "c", "a"])
             self.assertEqual(stdout, "")
             self.assertNotIn("git.exc.GitCommandError", stderr)
+            self.assertIn("redate-rewrites", stderr)  # logged redates
             # check result of redating during rebase
             # depending on external factors a cherry-pick might not have
             # concluded. Distinguish both cases.
@@ -719,6 +722,71 @@ class TestGitPrivacy(unittest.TestCase):
                 # redated
                 self.assertNotEqual(b.authored_date, br.authored_date)
                 self.assertNotEqual(c.authored_date, cr.authored_date)
+
+    def test_rewritelog(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            # check redate empty repo
+            result = self.invoke('redate-rewrites')
+            self.assertEqual(result.exit_code, 128)
+            # check redate without pending rewrites
+            a = self.addCommit("a")
+            result = self.invoke('redate-rewrites')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output, "No pending rewrites to redact\n")
+            # make sure an amend does not log a rewrite
+            # because the post-commit hook already took care
+            res, _, stderr = self.git.commit([
+                "--no-edit",
+                "--amend",
+            ], with_extended_output=True)
+            self.assertEqual(res, 0)
+            self.assertNotIn("redate-rewrites", stderr)
+            # add two more commits and do some rebasing
+            b = self.addCommit("b")
+            c = self.addCommit("c")
+            # swap last two commits
+            def _rebase_cmds():
+                return (
+                    f"p {self.repo.commit('HEAD')}"
+                    "\n"
+                    f"p {self.repo.commit('HEAD^')}"
+                )
+            res, stdout, stderr = self.git.rebase(
+                ["-q", "-i", "HEAD~2"],
+                env=dict(GIT_SEQUENCE_EDITOR=f"echo '{_rebase_cmds()}' >"),
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            self.assertEqual(stdout, "")
+            self.assertIn("redate-rewrites", stderr)  # logged redates
+            br = self.repo.head.commit
+            cr = self.repo.commit("HEAD^")
+            rwpath = os.path.join(self.repo.git_dir, "privacy", "rewrites")
+            with open(rwpath) as f:
+                rewrites = f.read()
+            self.assertEqual(len(rewrites.splitlines()), 2)
+            self.assertIn(br.hexsha, rewrites)
+            self.assertIn(cr.hexsha, rewrites)
+            self.assertFalse(self._is_loose(br))
+            self.assertFalse(self._is_loose(cr))
+            # redate rewrites
+            result = self.invoke('redate-rewrites')
+            self.assertEqual(result.exit_code, 0)
+            # check result of redating
+            self.assertTrue(self._is_loose(br))
+            self.assertTrue(self._is_loose(cr))
+            # rw log should be deleted after redating
+            self.assertFalse(os.path.exists(rwpath))
+
+    def _is_loose(self, commit) -> bool:
+        try:
+            return self.git.branch("--contains", commit.hexsha) == ""
+        except git.exc.GitCommandError:
+            return True  # cannot even find commit anymore
 
 
 if __name__ == '__main__':

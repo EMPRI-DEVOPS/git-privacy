@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# pass stdin rewrite info to git-privacy
+git-privacy --gitdir "$(git rev-parse --show-toplevel)" log-rewrites --type $1

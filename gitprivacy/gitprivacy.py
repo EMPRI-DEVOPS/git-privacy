@@ -9,7 +9,7 @@ import stat
 import sys
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, TextIO, Tuple
 
 from .cli import email
 from .cli.utils import assertCommits
@@ -18,6 +18,9 @@ from .dateredacter import DateRedacter, ResolutionDateRedacter
 from .encoder import Encoder, BasicEncoder, MessageEmbeddingEncoder
 from .rewriter import AmendRewriter, FilterRepoRewriter
 from .utils import fmtdate
+
+
+GIT_SUBDIR = "privacy"  # subdir in .git used for storing state
 
 
 class GitPrivacyConfig(object):
@@ -98,6 +101,7 @@ def do_init(ctx: click.Context, globally: bool,
         git_dir = repo.git_dir
     copy_hook(git_dir, "post-commit")
     copy_hook(git_dir, "pre-commit")
+    copy_hook(git_dir, "post-rewrite")
     # only (over-)write settings if option is explicitly specified
     if timezone_change is not None:
         assert timezone_change in ("warn", "abort")
@@ -274,6 +278,47 @@ def do_redate(ctx: click.Context, startpoint: str,
     rewriter.finish(rev)
 
 
+@cli.command('redate-rewrites')
+@click.pass_context
+def redate_rewrites(ctx: click.Context):
+    """Redact committer timestamps of rewritten commits."""
+    assertCommits(ctx)
+    repo = ctx.obj.repo
+    rewrites_log_path = os.path.join(repo.git_dir, GIT_SUBDIR, "rewrites")
+    if not os.path.exists(rewrites_log_path):
+        click.echo("No pending rewrites to redact")
+        ctx.exit(0)
+    if repo.is_dirty():
+        click.echo(f"Cannot redate: You have unstaged changes.", err=True)
+        ctx.exit(1)
+
+    # determine commits to redate
+    with open(rewrites_log_path, "r") as rwlog_fp:
+        rwlog = list(map(_parse_post_rewrite_format, rwlog_fp))
+    olds = set(e[0] for e in rwlog)
+    news = set(e[1] for e in rwlog)
+    pending = news.difference(olds)  # ignore already rewritten news
+
+    if len(pending) == 0:
+        click.echo("No pending rewrites to redact")
+        ctx.exit(0)
+
+    redacter = ctx.obj.get_dateredacter()
+    crypto = ctx.obj.get_crypto()
+    if crypto:
+        encoder: Encoder = MessageEmbeddingEncoder(redacter, crypto)
+    else:
+        encoder = BasicEncoder(redacter)
+    rewriter = FilterRepoRewriter(repo, encoder)
+
+    commits = map(repo.commit, pending)  # get Commit objects from hashes
+    with click.progressbar(commits, label="Redating commits") as bar:
+        for commit in bar:
+            rewriter.update(commit)
+    rewriter.finish("HEAD")  # TODO does HEAD include all possible rewrite refs?
+    os.remove(rewrites_log_path)
+
+
 @cli.command('check', hidden=True)
 @click.pass_context
 def do_check(ctx: click.Context):
@@ -323,6 +368,72 @@ def check_timezone_changes(ctx: click.Context) -> bool:
             last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date)):
         click.echo("Warning: Your timezone has changed since your last commit.", err=True)
         return True
+    return False
+
+
+@cli.command('log-rewrites', hidden=True)
+@click.argument('rewrites', type=click.File("r"), default="-")
+@click.option('--type', type=click.Choice(("amend", "rebase")))
+@click.pass_context
+def log_rewrites(ctx: click.Context, rewrites: TextIO, type: str):
+    """Log rewrites for later redating of necessary."""
+    repo: git.Repo = ctx.obj.repo
+    redacter = ctx.obj.get_dateredacter()
+    subdir = _create_git_subdir(repo)
+    rewrites_log_path = os.path.join(subdir, "rewrites")
+    found_dirty_dates = False
+    with open(rewrites_log_path, "a") as log:
+        for rewrite in rewrites:
+            _oldhex, newhex, _ = _parse_post_rewrite_format(rewrite)
+            if _has_dirtydate(repo, redacter, newhex):
+                log.write(rewrite)
+                found_dirty_dates = True
+    # warn about dirty dates
+    if found_dirty_dates:
+        click.echo("""A rewrite may have inserted unredacted committer dates.
+To apply date redaction on these dates run
+
+    git-privacy redate-rewrites
+
+Warning: This alters your Git history.""", err=True)
+
+
+def _create_git_subdir(repo: git.Repo) -> str:
+    path = os.path.join(repo.git_dir, GIT_SUBDIR)
+    if not os.path.exists(path):
+        os.mkdir(path)
+    return path
+
+
+def _parse_post_rewrite_format(line: str) -> Tuple[str, str, str]:
+    # format given to post-rewrite hook (cf. githooks(5)):
+    # <old-sha1> SP <new-sha1> [ SP <extra-info> ] LF
+    vals = line.split(" ", maxsplit=2)
+    n_vals = len(vals)
+    assert n_vals == 2 or n_vals == 3, "Unexpected post-rewrite format"
+    if n_vals == 2:
+        # pad to length 3
+        vals.append("")
+    return (vals[0], vals[1], vals[2])
+
+
+def _has_dirtydate(repo: git.Repo, redacter: DateRedacter,
+                   hexsha: str) -> bool:
+    try:
+        commit = repo.commit(hexsha)
+    except ValueError:
+        # commit no longer locatable
+        # nothing to be dirty
+        return False
+    # check if commit is already loose, i.e. not part of any branch
+    # (e.g., due to post-commit hook rewrites in the meantime)
+    if not repo.git.branch("--contains", commit.hexsha):
+        # do not warn about loose rewritten commits
+        return False
+    # check if commit date is already redacted
+    new_cd = redacter.redact(commit.committed_datetime)
+    if new_cd != commit.committed_datetime:
+        return True  # commit date is dirty
     return False
 
 
