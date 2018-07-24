@@ -1,0 +1,7 @@
+[privacy]
+        password = 123456
+        mode = simple
+        limit = 8-18
+        salt = Y83oUBUMjhXyMyjnHefwqg==
+[advice]
+        ignoredHook = false

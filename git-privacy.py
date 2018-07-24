@@ -1,0 +1,143 @@
+#!/usr/bin/python3
+"""
+git privacy
+"""
+import argparse
+import os
+import sys
+import base64
+import sqlite3
+import configparser
+from git import Repo
+import timestamp
+import crypto
+
+PARSER = argparse.ArgumentParser()
+PARSER.add_argument("-i", metavar="Intensity", dest="intensity",
+                    help="-i low | med | high",
+                    required=False)
+PARSER.add_argument("-log", help="-log", action="store_true", required=False)
+PARSER.add_argument("-config", help="-config", action="store_true", required=False)
+PARSER.add_argument("-hexsha", metavar="hexsha", dest="hexsha",
+                    help="-hexsha 7dsfg...",
+                    required=False)
+PARSER.add_argument("-gitdir", metavar="gitdir", dest="gitdir",
+                    help="-gitdir some dir",
+                    required=True)
+PARSER.add_argument("-a_date", metavar="a_date", dest="a_date",
+                    help="-a_date some_Date",
+                    required=False)
+PARSER.add_argument("-c_date", metavar="c_date", dest="c_date",
+                    help="-c_date some_Date",
+                    required=False)
+ARGS = PARSER.parse_args()
+
+def read_config(gitdir):
+    """ Reads git config and returns dict with:
+        mode
+        password
+        and salt """
+    repo = Repo(gitdir)
+    config = {}
+    config_reader = repo.config_reader(config_level='repository')
+    options = ["password", "mode", "salt", "limit"]
+    for option in options:
+        try:
+            config[option] = config_reader.get_value("privacy", option)
+        except configparser.NoOptionError as missing_option:
+            if missing_option.option == "salt":
+                print("No Salt found generating a new salt....", file=sys.stderr)
+                config["salt"] = base64.urlsafe_b64encode(os.urandom(16))
+                write_salt(gitdir, base64.urlsafe_b64encode(config["salt"]))
+            elif missing_option.option == "mode":
+                print("No mode defined using default", file=sys.stderr)
+                config["mode"] = "simple"
+            elif missing_option.option == "password":
+                print("error no password", file=sys.stderr)
+                raise missing_option
+            elif missing_option == "limit":
+                print("no limit", file=sys.stderr)
+    return config
+
+def write_salt(gitdir, salt):
+    """ Writes salt to config """
+    repo = Repo(gitdir)
+    config_writer = repo.config_writer(config_level='repository')
+    config_writer.set_value("privacy", "salt", salt)
+    config_writer.release()
+
+def do_log(privacy):
+    """ creates a git log like output """
+    time_manager = timestamp.TimeStamp()
+    current_working_directory = os.getcwd()
+    repo = Repo(current_working_directory)
+    text = repo.git.rev_list("master").splitlines()
+    print("loaded {} commits".format(len(text)))
+    magic_list = get_data(current_working_directory, privacy)
+
+    for commit_id in text:
+        commit = repo.commit(commit_id)
+        if commit.hexsha in magic_list:
+            real_date = magic_list[commit.hexsha]
+        else:
+            real_date = "The Date is real"
+        print("commit {}\n Author: {}\n Date: {}\n RealDate: {} \n \t {} ".format(commit.hexsha, commit.author,
+                                                                        time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset),
+                                                                        real_date,
+                                                                        commit.message))
+
+def get_data(gitdir, privacy):
+    """ reads from the sqlitedb """
+    try:
+        database = sqlite3.connect("{}{}{}".format(gitdir, os.sep, "history.db"))
+        database_cursor = database.cursor()
+        magic_list = {}
+        some_data = database_cursor.execute("SELECT * FROM history")
+        for row in some_data:
+            magic_list[privacy.decrypt(row[0])] = privacy.decrypt(row[1])
+
+        return magic_list
+    except Exception as e:
+        raise e
+    finally:
+        database.close()
+
+def save_data(gitdir, hexsha, authored_date, committer_date, privacy):
+    """ stores to the sqlitedb """
+    hexsha = privacy.encrypt(hexsha)
+    committer_date = privacy.encrypt(committer_date)
+    authored_date = privacy.encrypt(authored_date)
+
+    try:
+        database = sqlite3.connect("{}{}{}".format(gitdir, os.sep, "history.db"))
+        database_cursor = database.cursor()
+        database_cursor.execute("CREATE TABLE IF NOT EXISTS history (hexsha text, authored_date text, committer_date text)")
+        database_cursor.execute("INSERT INTO history VALUES (?,?,?)", (hexsha, authored_date, committer_date))
+    except Exception as e:
+        # TODO
+        raise e
+    finally:
+        database.commit()
+        database.close()
+
+def main():
+    """start stuff"""
+    path = os.path.expanduser(ARGS.gitdir)
+    config = read_config(path)
+    salt = config["salt"]
+    password = str(config["password"])
+
+    privacy = crypto.Crypto(salt, password)
+    time_manager = timestamp.TimeStamp(config["limit"], config["mode"])
+    repo = Repo(path)
+    print(time_manager.get_next_timestamp(repo))
+
+    if ARGS.log:
+        do_log(privacy)
+    elif ARGS.hexsha is not None and ARGS.a_date is not None:
+        save_data(path, ARGS.hexsha, ARGS.a_date, ARGS.c_date, privacy)
+
+    sys.exit()
+
+if __name__ == '__main__':
+    main()
