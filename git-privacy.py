@@ -57,6 +57,13 @@ def read_config(gitdir):
                 raise missing_option
             elif missing_option == "limit":
                 print("no limit", file=sys.stderr)
+    if config["mode"] == "reduce":
+        try:
+            config["pattern"] = config_reader.get_value("privacy", "pattern")
+        except configparser.NoOptionError as missing_option:
+            print("no pattern, setting default pattern s", file=sys.stderr)
+            config["pattern"] = "s"
+
     return config
 
 def write_salt(gitdir, salt):
@@ -98,10 +105,11 @@ def main():
 
     privacy = crypto.Crypto(salt, password)
     db_connection = database.Database(path, privacy)
-
-    time_manager = timestamp.TimeStamp(config["limit"], config["mode"])
+    # TODO put time related option in dict
+    time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
     repo = Repo(path)
-    print(time_manager.get_next_timestamp(repo))
+    time_stamp = time_manager.now() # TODO
+    print(time_manager.get_next_timestamp(repo, time_stamp))
 
     if ARGS.log:
         do_log(privacy)

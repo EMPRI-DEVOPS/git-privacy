@@ -7,11 +7,12 @@ from git import Repo
 
 class TimeStamp:
 
-    def __init__(self, limit=False, mode=False):
+    def __init__(self, pattern="s", limit=False, mode=False):
         super(TimeStamp, self).__init__()
         foo_bar = re.search('([0-9]+)-([0-9]+)', str(limit))
         self.limit = [int(foo_bar.group(1)), int(foo_bar.group(2))]
         self.mode = mode
+        self.pattern = pattern
 
     @staticmethod
     def pairwise(iterable):
@@ -36,6 +37,24 @@ class TimeStamp:
         utc_offset = datetime.timedelta(seconds=-utc_offset_sec)
         time_stamp = datetime.datetime.now().replace(tzinfo=datetime.timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
         return time_stamp
+
+    def reduce(self, timestamp):
+        timestamp = datetime.datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
+        # "y,M,d,h,m,s"
+        if "y" in self.pattern:
+            timestamp = timestamp.replace(year=1970)
+        if "M" in self.pattern:
+            timestamp = timestamp.replace(month=1)
+        if "d" in self.pattern:
+            timestamp = timestamp.replace(day=1)
+        if "h" in self.pattern:
+            timestamp = timestamp.replace(hour=1)
+        if "m" in self.pattern:
+            timestamp = timestamp.replace(minute=1)
+        if "s" in self.pattern:
+            timestamp = timestamp.replace(second=1)
+        return timestamp
+
 
     @staticmethod
     def custom(year, month, day, hour, minute, second, timezone):
@@ -86,13 +105,16 @@ class TimeStamp:
         ts = datetime.datetime.fromtimestamp(seconds, datetime.timezone(datetime.timedelta(seconds=-tz))).strftime("%a %b %d %H:%M:%S %Y %z")
         return ts
 
-    def get_next_timestamp(self, repo):
+    def get_next_timestamp(self, repo, timestamp):
+        if self.mode == "reduce":
+            return self.reduce(timestamp)
         if self.mode == "simple":
             commit_id = repo.git.rev_list("master").splitlines()[1]
             commit = repo.commit(commit_id)
             last_timestamp = self.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)
             return self.plus_hour(last_timestamp, 1)
-        else:
+        elif self.mode == "no":
+            # TODO
             commits = repo.git.rev_list("master").splitlines()
             list_of_stamps = []
             for a, b in self.pairwise(commits):
