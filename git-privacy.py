@@ -6,11 +6,11 @@ import argparse
 import os
 import sys
 import base64
-import sqlite3
 import configparser
 from git import Repo
 import timestamp
 import crypto
+import database
 
 PARSER = argparse.ArgumentParser()
 PARSER.add_argument("-i", metavar="Intensity", dest="intensity",
@@ -70,10 +70,13 @@ def do_log(privacy):
     """ creates a git log like output """
     time_manager = timestamp.TimeStamp()
     current_working_directory = os.getcwd()
+    db_connection = database.Database(current_working_directory, privacy)
+
     repo = Repo(current_working_directory)
     text = repo.git.rev_list("master").splitlines()
     print("loaded {} commits".format(len(text)))
-    magic_list = get_data(current_working_directory, privacy)
+
+    magic_list = db_connection.get()
 
     for commit_id in text:
         commit = repo.commit(commit_id)
@@ -86,40 +89,6 @@ def do_log(privacy):
                                                                         real_date,
                                                                         commit.message))
 
-def get_data(gitdir, privacy):
-    """ reads from the sqlitedb """
-    try:
-        database = sqlite3.connect("{}{}{}".format(gitdir, os.sep, "history.db"))
-        database_cursor = database.cursor()
-        magic_list = {}
-        some_data = database_cursor.execute("SELECT * FROM history")
-        for row in some_data:
-            magic_list[privacy.decrypt(row[0])] = privacy.decrypt(row[1])
-
-        return magic_list
-    except Exception as e:
-        raise e
-    finally:
-        database.close()
-
-def save_data(gitdir, hexsha, authored_date, committer_date, privacy):
-    """ stores to the sqlitedb """
-    hexsha = privacy.encrypt(hexsha)
-    committer_date = privacy.encrypt(committer_date)
-    authored_date = privacy.encrypt(authored_date)
-
-    try:
-        database = sqlite3.connect("{}{}{}".format(gitdir, os.sep, "history.db"))
-        database_cursor = database.cursor()
-        database_cursor.execute("CREATE TABLE IF NOT EXISTS history (hexsha text, authored_date text, committer_date text)")
-        database_cursor.execute("INSERT INTO history VALUES (?,?,?)", (hexsha, authored_date, committer_date))
-    except Exception as e:
-        # TODO
-        raise e
-    finally:
-        database.commit()
-        database.close()
-
 def main():
     """start stuff"""
     path = os.path.expanduser(ARGS.gitdir)
@@ -128,6 +97,8 @@ def main():
     password = str(config["password"])
 
     privacy = crypto.Crypto(salt, password)
+    db_connection = database.Database(path, privacy)
+
     time_manager = timestamp.TimeStamp(config["limit"], config["mode"])
     repo = Repo(path)
     print(time_manager.get_next_timestamp(repo))
@@ -135,7 +106,7 @@ def main():
     if ARGS.log:
         do_log(privacy)
     elif ARGS.hexsha is not None and ARGS.a_date is not None:
-        save_data(path, ARGS.hexsha, ARGS.a_date, ARGS.c_date, privacy)
+        db_connection.put(ARGS.hexsha, ARGS.a_date, ARGS.c_date)
 
     sys.exit()
 
