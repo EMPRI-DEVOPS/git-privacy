@@ -13,23 +13,52 @@ import crypto
 import database
 
 PARSER = argparse.ArgumentParser()
-PARSER.add_argument("-i", metavar="Intensity", dest="intensity",
-                    help="-i low | med | high",
-                    required=False)
+
+ARGUMENTS = {
+    "Intensity": {
+        "argument": "-i",
+        "metavar": "Intensity",
+        "dest": "intensity",
+        "help": "-i low | med | high",
+        "required": False
+    },
+    "hexsha": {
+        "argument": "-hexsha",
+        "metavar": "hexsha",
+        "dest": "hexsha",
+        "help": "-hexsha 7dsfg...",
+        "required": False
+    },
+    "gitdir": {
+        "argument": "-gitdir",
+        "metavar": "gitdir",
+        "dest": "gitdir",
+        "help": "-gitdir /home/user/git/somerepo",
+        "required": True
+    },
+    "a_date": {
+        "argument": "-a_date",
+        "metavar": "a_date",
+        "dest": "a_date",
+        "help": "-a_date ",
+        "required": False
+    },
+    "c_date": {
+        "argument": "-c_date",
+        "metavar": "c_date",
+        "dest": "c_date",
+        "help": "-c_date ",
+        "required": False
+    }
+
+}
+for arg in ARGUMENTS:
+    PARSER.add_argument(arg["argument"], metavar=arg["metavar"], dest=arg["dest"],
+                        help=arg["help"], required=arg["required"])
+
 PARSER.add_argument("-log", help="-log", action="store_true", required=False)
 PARSER.add_argument("-config", help="-config", action="store_true", required=False)
-PARSER.add_argument("-hexsha", metavar="hexsha", dest="hexsha",
-                    help="-hexsha 7dsfg...",
-                    required=False)
-PARSER.add_argument("-gitdir", metavar="gitdir", dest="gitdir",
-                    help="-gitdir some dir",
-                    required=True)
-PARSER.add_argument("-a_date", metavar="a_date", dest="a_date",
-                    help="-a_date some_Date",
-                    required=False)
-PARSER.add_argument("-c_date", metavar="c_date", dest="c_date",
-                    help="-c_date some_Date",
-                    required=False)
+
 ARGS = PARSER.parse_args()
 
 def read_config(gitdir):
