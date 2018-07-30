@@ -50,11 +50,12 @@ ARGUMENTS = {
         "help": "-c_date ",
         "required": False
     }
-
 }
+
 for arg in ARGUMENTS:
-    PARSER.add_argument(arg["argument"], metavar=arg["metavar"], dest=arg["dest"],
-                        help=arg["help"], required=arg["required"])
+    PARSER.add_argument(ARGUMENTS[arg]["argument"], metavar=ARGUMENTS[arg]["metavar"],
+                        dest=ARGUMENTS[arg]["dest"], help=ARGUMENTS[arg]["help"],
+                        required=ARGUMENTS[arg]["required"])
 
 PARSER.add_argument("-log", help="-log", action="store_true", required=False)
 PARSER.add_argument("-config", help="-config", action="store_true", required=False)
@@ -135,11 +136,13 @@ def main():
     privacy = crypto.Crypto(salt, password)
     db_connection = database.Database(path, privacy)
     # TODO put time related option in dict
-    time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
+    #time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
+    time_manager = timestamp.TimeStamp(config["mode"])
     repo = Repo(path)
     time_stamp = time_manager.now() # TODO
-    print(time_manager.get_next_timestamp(repo, time_stamp))
-
+    #print(time_manager.get_next_timestamp(repo, time_stamp))
+    # year, month, day, hour, minute, second, timezone
+    print(time_manager.custom(2042, 10, 10, 10, 10, 10, 2))
     if ARGS.log:
         do_log(privacy)
     elif ARGS.hexsha is not None and ARGS.a_date is not None:

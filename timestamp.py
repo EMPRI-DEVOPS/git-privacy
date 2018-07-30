@@ -7,10 +7,11 @@ from git import Repo
 
 class TimeStamp:
 
-    def __init__(self, pattern="s", limit=False, mode=False):
+    def __init__(self, pattern="s", limit=False, mode="simple"):
         super(TimeStamp, self).__init__()
         foo_bar = re.search('([0-9]+)-([0-9]+)', str(limit))
-        self.limit = [int(foo_bar.group(1)), int(foo_bar.group(2))]
+        if limit is not False:
+            self.limit = [int(foo_bar.group(1)), int(foo_bar.group(2))]
         self.mode = mode
         self.pattern = pattern
 
