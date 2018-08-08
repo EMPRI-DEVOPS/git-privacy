@@ -33,14 +33,14 @@ class Database(object):
 
     def put(self, hexsha, authored_date, committer_date):
         """ stores to the sqlitedb """
+        identifyer = self.crypto.hmac(hexsha)
         hexsha = self.crypto.encrypt(hexsha)
         committer_date = self.crypto.encrypt(committer_date)
         authored_date = self.crypto.encrypt(authored_date)
 
         try:
-            # TODO insert identifyer?
-            self.database_cursor.execute("CREATE TABLE IF NOT EXISTS history (hexsha text, authored_date text, committer_date text)")
-            self.database_cursor.execute("INSERT INTO history VALUES (?,?,?)", (hexsha, authored_date, committer_date))
+            self.database_cursor.execute("CREATE TABLE IF NOT EXISTS history (identifyer text, hexsha text, authored_date text, committer_date text)")
+            self.database_cursor.execute("INSERT INTO history VALUES (?,?,?)", (identifyer, hexsha, authored_date, committer_date))
         except Exception as e:
             # TODO
             raise e
