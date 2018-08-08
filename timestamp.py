@@ -3,6 +3,7 @@ import time
 import datetime
 import re
 import itertools
+import random
 from git import Repo
 
 class TimeStamp:
@@ -39,21 +40,30 @@ class TimeStamp:
         time_stamp = datetime.datetime.now().replace(tzinfo=datetime.timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
         return time_stamp
 
+    def enforce_limit(self, timestamp):
+        if timestamp.hour < self.limit[0]:
+            diff_to_limit = self.limit[0] - timestamp.hour
+            timestamp += datetime.timedelta(hours=diff_to_limit)
+        elif timestamp.hour > self.limit[1]:
+            diff_to_limit = timestamp.hour - self.limit[1]
+            timestamp -= datetime.timedelta(hours=diff_to_limit)
+        return timestamp
+
     def reduce(self, timestamp):
         timestamp = datetime.datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
         # "y,M,d,h,m,s"
         if "y" in self.pattern:
             timestamp = timestamp.replace(year=1970)
         if "M" in self.pattern:
-            timestamp = timestamp.replace(month=1)
+            timestamp = timestamp.replace(month=random.randrange(1, 12, 1))
         if "d" in self.pattern:
-            timestamp = timestamp.replace(day=1)
+            timestamp = timestamp.replace(day=random.randrange(1, 31, 1)) # TODO Problem
         if "h" in self.pattern:
-            timestamp = timestamp.replace(hour=1)
+            timestamp = timestamp.replace(hour=random.randrange(1, 24, 1))
         if "m" in self.pattern:
-            timestamp = timestamp.replace(minute=1)
+            timestamp = timestamp.replace(minute=random.randrange(1, 60, 1))
         if "s" in self.pattern:
-            timestamp = timestamp.replace(second=1)
+            timestamp = timestamp.replace(second=random.randrange(1, 60, 1))
         return timestamp
 
 
@@ -108,7 +118,10 @@ class TimeStamp:
 
     def get_next_timestamp(self, repo, timestamp):
         if self.mode == "reduce":
-            return self.reduce(timestamp)
+            stamp = self.reduce(timestamp)
+            if self.limit is not False:
+                stamp = self.enforce_limit(stamp)
+            return stamp
         if self.mode == "simple":
             commit_id = repo.git.rev_list("master").splitlines()[1]
             commit = repo.commit(commit_id)

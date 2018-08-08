@@ -15,13 +15,6 @@ import database
 PARSER = argparse.ArgumentParser()
 
 ARGUMENTS = {
-    "Intensity": {
-        "argument": "-i",
-        "metavar": "Intensity",
-        "dest": "intensity",
-        "help": "-i low | med | high",
-        "required": False
-    },
     "hexsha": {
         "argument": "-hexsha",
         "metavar": "hexsha",
@@ -57,8 +50,9 @@ for arg in ARGUMENTS:
                         dest=ARGUMENTS[arg]["dest"], help=ARGUMENTS[arg]["help"],
                         required=ARGUMENTS[arg]["required"])
 
+# Flags
+
 PARSER.add_argument("-log", help="-log", action="store_true", required=False)
-PARSER.add_argument("-config", help="-config", action="store_true", required=False)
 
 ARGS = PARSER.parse_args()
 
@@ -136,13 +130,13 @@ def main():
     privacy = crypto.Crypto(salt, password)
     db_connection = database.Database(path, privacy)
     # TODO put time related option in dict
-    #time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
-    time_manager = timestamp.TimeStamp(config["mode"])
+    time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
+    #time_manager = timestamp.TimeStamp(config["mode"])
     repo = Repo(path)
     time_stamp = time_manager.now() # TODO
-    #print(time_manager.get_next_timestamp(repo, time_stamp))
+    print(time_manager.get_next_timestamp(repo, time_stamp))
     # year, month, day, hour, minute, second, timezone
-    print(time_manager.custom(2042, 10, 10, 10, 10, 10, 2))
+    #print(time_manager.custom(2042, 10, 10, 10, 10, 10, 2))
     if ARGS.log:
         do_log(privacy)
     elif ARGS.hexsha is not None and ARGS.a_date is not None:
