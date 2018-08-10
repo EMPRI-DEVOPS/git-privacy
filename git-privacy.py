@@ -7,7 +7,9 @@ import os
 import sys
 import base64
 import configparser
+import sqlite3
 from git import Repo
+import colorama
 import timestamp
 import crypto
 import database
@@ -80,11 +82,11 @@ def read_config(gitdir):
             elif missing_option.option == "password":
                 print("error no password", file=sys.stderr)
                 raise missing_option
-            elif missing_option == "limit":
+            elif missing_option.option == "limit":
                 print("no limit", file=sys.stderr)
-            elif missing_option == "databasepath":
+            elif missing_option.option == "databasepath":
                 print("databasepath not defined using path to repository", file=sys.stderr)
-                config["databasepath"] = None
+                config["databasepath"] = "notdefined"
     if config["mode"] == "reduce":
         try:
             config["pattern"] = config_reader.get_value("privacy", "pattern")
@@ -101,28 +103,40 @@ def write_salt(gitdir, salt):
     config_writer.set_value("privacy", "salt", salt)
     config_writer.release()
 
-def do_log(privacy):
+def do_log(privacy, db_connection):
     """ creates a git log like output """
+    colorama.init(autoreset=True)
+
     time_manager = timestamp.TimeStamp()
     current_working_directory = os.getcwd()
-    db_connection = database.Database(current_working_directory, privacy)
 
     repo = Repo(current_working_directory)
     text = repo.git.rev_list("master").splitlines()
     print("loaded {} commits".format(len(text)))
 
-    magic_list = db_connection.get()
+    try:
+        magic_list = db_connection.get()
 
-    for commit_id in text:
-        commit = repo.commit(commit_id)
-        if commit.hexsha in magic_list:
-            real_date = magic_list[commit.hexsha]
-        else:
-            real_date = "The Date is real"
-        print("commit {}\n Author: {}\n Date: {}\n RealDate: {} \n \t {} ".format(commit.hexsha, commit.author,
-                                                                        time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset),
-                                                                        real_date,
-                                                                        commit.message))
+        for commit_id in text:
+            commit = repo.commit(commit_id)
+            print(colorama.Fore.YELLOW +"commit {}".format(commit.hexsha))
+            print("Author: {}".format(commit.author))
+            if commit.hexsha in magic_list:
+                real_date = magic_list[commit.hexsha]
+                print(colorama.Fore.RED + "Date: {}".format(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)))
+                print(colorama.Fore.GREEN + "RealDate: {}".format(real_date))
+            else:
+                print("Date: {}".format(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)))
+
+
+
+            print("\t {} ".format(commit.message))
+    except sqlite3.OperationalError as db_e:
+        print(db_e)
+        print("No data found in Database")
+
+
+
 
 def main():
     """start stuff"""
@@ -132,8 +146,8 @@ def main():
 
     # init modules
     privacy = crypto.Crypto(config["salt"], str(config["password"]))
-    if config["databasepath"] is None:
-        db_connection = database.Database(repo_path+"history.db", privacy)
+    if config["databasepath"] is "notdefined":
+        db_connection = database.Database(repo_path+"/history.db", privacy)
     else:
         db_connection = database.Database(config["databasepath"], privacy)
 
@@ -146,7 +160,7 @@ def main():
     #print(time_manager.custom(2042, 10, 10, 10, 10, 10, 2))
 
     if ARGS.log:
-        do_log(privacy)
+        do_log(privacy, db_connection)
     elif ARGS.clean:
         db_connection.clean_database(repo.git.rev_list("master").splitlines())
     elif ARGS.hexsha is not None and ARGS.a_date is not None:
