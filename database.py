@@ -16,7 +16,20 @@ class Database(object):
 
     def clean_database(self, commit_id_list):
         """Removes entrys that do no longer exist in the db"""
-        # TODO: Implement
+        commit_id_list = map(self.crypto.hmac, commit_id_list)
+        counter = 0
+        try:
+            all_data = self.database_cursor.execute("SELECT * FROM history")
+            for row in all_data.fetchall():
+                if row[0] not in commit_id_list:
+                    self.database_cursor.execute('DELETE FROM history WHERE identifyer=?', (row[0],))
+                    counter += 1
+            print("Deleted {} entrys".format(counter))
+        except Exception as e:
+            raise e
+        finally:
+            self.database.commit()
+            self.database.close()
 
 
     def get(self):
@@ -24,8 +37,8 @@ class Database(object):
         try:
             result_list = {}
             all_data = self.database_cursor.execute("SELECT * FROM history")
-            for row in all_data:
-                result_list[self.crypto.decrypt(row[0])] = self.crypto.decrypt(row[1])
+            for row in all_data.fetchall():
+                result_list[self.crypto.decrypt(row[1])] = self.crypto.decrypt(row[2])
 
                 return result_list
         except Exception as e:

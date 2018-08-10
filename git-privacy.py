@@ -53,6 +53,7 @@ for arg in ARGUMENTS:
 # Flags
 
 PARSER.add_argument("-log", help="-log", action="store_true", required=False)
+PARSER.add_argument("-clean", help="-clean", action="store_true", required=False)
 
 ARGS = PARSER.parse_args()
 
@@ -146,6 +147,8 @@ def main():
 
     if ARGS.log:
         do_log(privacy)
+    elif ARGS.clean:
+        db_connection.clean_database(repo.git.rev_list("master").splitlines())
     elif ARGS.hexsha is not None and ARGS.a_date is not None:
         db_connection.put(ARGS.hexsha, ARGS.a_date, ARGS.c_date)
 
