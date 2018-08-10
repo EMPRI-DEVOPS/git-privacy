@@ -64,7 +64,7 @@ def read_config(gitdir):
     repo = Repo(gitdir)
     config = {}
     config_reader = repo.config_reader(config_level='repository')
-    options = ["password", "mode", "salt", "limit"]
+    options = ["password", "mode", "salt", "limit", "databasepath"]
     for option in options:
         try:
             config[option] = config_reader.get_value("privacy", option)
@@ -81,6 +81,9 @@ def read_config(gitdir):
                 raise missing_option
             elif missing_option == "limit":
                 print("no limit", file=sys.stderr)
+            elif missing_option == "databasepath":
+                print("databasepath not defined using path to repository", file=sys.stderr)
+                config["databasepath"] = None
     if config["mode"] == "reduce":
         try:
             config["pattern"] = config_reader.get_value("privacy", "pattern")
@@ -122,21 +125,25 @@ def do_log(privacy):
 
 def main():
     """start stuff"""
-    path = os.path.expanduser(ARGS.gitdir)
-    config = read_config(path)
-    salt = config["salt"]
-    password = str(config["password"])
+    # Open Config file
+    repo_path = os.path.expanduser(ARGS.gitdir)
+    config = read_config(repo_path)
 
-    privacy = crypto.Crypto(salt, password)
-    db_connection = database.Database(path, privacy)
-    # TODO put time related option in dict
+    # init modules
+    privacy = crypto.Crypto(config["salt"], str(config["password"]))
+    if config["databasepath"] is None:
+        db_connection = database.Database(repo_path+"history.db", privacy)
+    else:
+        db_connection = database.Database(config["databasepath"], privacy)
+
     time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
-    #time_manager = timestamp.TimeStamp(config["mode"])
-    repo = Repo(path)
+    repo = Repo(repo_path)
+
     time_stamp = time_manager.now() # TODO
     print(time_manager.get_next_timestamp(repo, time_stamp))
-    # year, month, day, hour, minute, second, timezone
+
     #print(time_manager.custom(2042, 10, 10, 10, 10, 10, 2))
+
     if ARGS.log:
         do_log(privacy)
     elif ARGS.hexsha is not None and ARGS.a_date is not None:

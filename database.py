@@ -5,10 +5,12 @@ import crypto
 
 class Database(object):
     """docstring for Database"""
-    def __init__(self, gitdir, crypto):
+    def __init__(self, databasepath, crypto):
         super(Database, self).__init__()
-        self.gitdir = gitdir
-        self.database = sqlite3.connect("{}{}{}".format(self.gitdir, os.sep, "history.db"))
+        try:
+            self.database = sqlite3.connect(databasepath)
+        except Exception as e:
+            raise e
         self.crypto = crypto
         self.database_cursor = self.database.cursor()
 
@@ -40,7 +42,7 @@ class Database(object):
 
         try:
             self.database_cursor.execute("CREATE TABLE IF NOT EXISTS history (identifyer text, hexsha text, authored_date text, committer_date text)")
-            self.database_cursor.execute("INSERT INTO history VALUES (?,?,?)", (identifyer, hexsha, authored_date, committer_date))
+            self.database_cursor.execute("INSERT INTO history VALUES (?,?,?,?)", (identifyer, hexsha, authored_date, committer_date))
         except Exception as e:
             # TODO
             raise e
