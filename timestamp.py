@@ -4,6 +4,7 @@ import datetime
 import re
 import itertools
 import random
+import calendar
 from git import Repo
 
 class TimeStamp:
@@ -57,7 +58,8 @@ class TimeStamp:
         if "M" in self.pattern:
             timestamp = timestamp.replace(month=random.randrange(1, 12, 1))
         if "d" in self.pattern:
-            timestamp = timestamp.replace(day=random.randrange(1, 31, 1)) # TODO Problem
+            max_day = calendar.monthrange(timestamp.year,timestamp.month)[1]
+            timestamp = timestamp.replace(day=random.randrange(1, max_day, 1))
         if "h" in self.pattern:
             timestamp = timestamp.replace(hour=random.randrange(1, 24, 1))
         if "m" in self.pattern:
