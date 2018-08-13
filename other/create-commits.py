@@ -7,6 +7,8 @@ import os
 import uuid
 import random
 import string
+import requests
+from bs4 import BeautifulSoup
 
 
 PARSER = argparse.ArgumentParser()
@@ -27,7 +29,11 @@ def main():
             with open(file_name, 'w+') as file:
                 file.write(''.join(random.choices(string.ascii_uppercase + string.digits, k=random.randrange(1,100,1))))
             sp.check_call(["git", "add", "."])
-            sp.check_call(["git", "commit", "-m", "{} - {}".format(uuid.uuid4(), i)])
+            result = requests.get('http://www.whatthecommit.com/')
+            soup = BeautifulSoup(result.content, 'html5lib')
+            div = soup.find(id="content")
+            message = div.findAll('p')[0].getText().rstrip()
+            sp.check_call(["git", "commit", "-m", "{}".format(message)])
 
 
 if __name__ == '__main__':
