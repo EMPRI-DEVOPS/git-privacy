@@ -61,7 +61,10 @@ class TimeStamp:
             max_day = calendar.monthrange(timestamp.year,timestamp.month)[1]
             timestamp = timestamp.replace(day=random.randrange(1, max_day, 1))
         if "h" in self.pattern:
-            timestamp = timestamp.replace(hour=random.randrange(1, 24, 1))
+            if self.limit is not False:
+                timestamp = timestamp.replace(hour=random.randrange(self.limit[0], self.limit[1], 1))
+            else:
+                timestamp = timestamp.replace(hour=random.randrange(1, 24, 1))
         if "m" in self.pattern:
             timestamp = timestamp.replace(minute=random.randrange(1, 60, 1))
         if "s" in self.pattern:
@@ -121,8 +124,6 @@ class TimeStamp:
     def get_next_timestamp(self, repo, timestamp):
         if self.mode == "reduce":
             stamp = self.reduce(timestamp)
-            if self.limit is not False:
-                stamp = self.enforce_limit(stamp)
             return stamp
         if self.mode == "simple":
             commit_id = repo.git.rev_list("master").splitlines()[1]
