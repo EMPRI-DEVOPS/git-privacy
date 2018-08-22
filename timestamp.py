@@ -41,7 +41,14 @@ class TimeStamp:
         time_stamp = datetime.datetime.now().replace(tzinfo=datetime.timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
         return time_stamp
 
+    @staticmethod
+    def get_timezone(timestamp):
+        """returns list of timestamp and corresponding timezone"""
+        timezone = datetime.datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z").strftime("%z")
+        return [timestamp, timezone]
+
     def enforce_limit(self, timestamp):
+        """the limit stored in the object will be enforced on the timestamp"""
         if timestamp.hour < self.limit[0]:
             diff_to_limit = self.limit[0] - timestamp.hour
             timestamp += datetime.timedelta(hours=diff_to_limit)

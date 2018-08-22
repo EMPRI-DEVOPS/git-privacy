@@ -29,7 +29,7 @@ ARGUMENTS = {
         "metavar": "gitdir",
         "dest": "gitdir",
         "help": "-gitdir /home/user/git/somerepo",
-        "required": True
+        "required": False
     },
     "a_date": {
         "argument": "-a_date",
@@ -52,10 +52,13 @@ for arg in ARGUMENTS:
                         dest=ARGUMENTS[arg]["dest"], help=ARGUMENTS[arg]["help"],
                         required=ARGUMENTS[arg]["required"])
 
-# Flags
+# Command Flags
 
+PARSER.add_argument("-getstamp", help="-getstamp", action="store_true", required=False)
+PARSER.add_argument("-store", help="-store", action="store_true", required=False)
 PARSER.add_argument("-log", help="-log", action="store_true", required=False)
 PARSER.add_argument("-clean", help="-clean", action="store_true", required=False)
+PARSER.add_argument("-check", help="-check", action="store_true", required=False)
 
 ARGS = PARSER.parse_args()
 
@@ -139,33 +142,104 @@ def do_log(privacy, db_connection):
 
 def main():
     """start stuff"""
-    # Open Config file
-    repo_path = os.path.expanduser(ARGS.gitdir)
-    config = read_config(repo_path)
-
-    # init modules
-    privacy = crypto.Crypto(config["salt"], str(config["password"]))
-    if config["databasepath"] is "notdefined":
-        db_connection = database.Database(repo_path+"/history.db", privacy)
-    else:
+    repo_path = None
+    config = None
+    try:
+        repo_path = os.path.expanduser(ARGS.gitdir)
+        config = read_config(repo_path)
+    except TypeError:
+        try:
+            repo_path = os.getcwd()
+            config = read_config(repo_path)
+        except Exception as e:
+            raise e
+    try:
+        privacy = crypto.Crypto(config["salt"], str(config["password"]))
         db_connection = database.Database(config["databasepath"], privacy)
+    except Exception as e:
+        raise e
+    else:
+        privacy = crypto.Crypto(config["salt"], str(config["password"]))
+        db_connection = database.Database(repo_path+"/history.db", privacy)
 
-    time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
-    repo = Repo(repo_path)
+    try:
+        time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
+        repo = Repo(repo_path)
+    except Exception as e:
+        raise e
 
-    time_stamp = time_manager.now() # TODO
-    print(time_manager.get_next_timestamp(repo, time_stamp))
 
-    #print(time_manager.custom(2042, 10, 10, 10, 10, 10, 2))
+    if ARGS.getstamp:
+        time_stamp = time_manager.now() # TODO
+        print(time_manager.get_next_timestamp(repo, time_stamp))
+    elif ARGS.store:
+        try:
+            db_connection.put(ARGS.hexsha, ARGS.a_date, ARGS.c_date)
+        except Exception as e:
+            raise e
+    elif ARGS.log:
+        pass
+    elif ARGS.clean:
+        pass
+    elif ARGS.check:
+        pass
+    else:
+        PARSER.print_help()
+        #PARSER.exit()
 
+    sys.exit()
+
+"""
+
+    if ARGS.getstamp:
+        if ARGS.gitdir:
+            repo_path = os.path.expanduser(ARGS.gitdir)
+            config = read_config(repo_path)
+
+            # init modules
+            privacy = crypto.Crypto(config["salt"], str(config["password"]))
+            if config["databasepath"] == "notdefined":
+                db_connection = database.Database(repo_path+"/history.db", privacy)
+            else:
+                db_connection = database.Database(config["databasepath"], privacy)
+
+            time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
+            repo = Repo(repo_path)
+            time_stamp = time_manager.now() # TODO
+            print(time_manager.get_next_timestamp(repo, time_stamp))
     if ARGS.log:
-        do_log(privacy, db_connection)
+        if ARGS.gitdir:
+            repo_path = os.path.expanduser(ARGS.gitdir)
+            config = read_config(repo_path)
+
+            # init modules
+            privacy = crypto.Crypto(config["salt"], str(config["password"]))
+            if config["databasepath"] == "notdefined":
+                db_connection = database.Database(repo_path+"/history.db", privacy)
+            else:
+                db_connection = database.Database(config["databasepath"], privacy)
+            do_log(privacy, db_connection)
     elif ARGS.clean:
         db_connection.clean_database(repo.git.rev_list("master").splitlines())
     elif ARGS.hexsha is not None and ARGS.a_date is not None:
         db_connection.put(ARGS.hexsha, ARGS.a_date, ARGS.c_date)
 
-    sys.exit()
+
+"""
+
+    # Open Config file
+
+
+
+
+
+
+
+    #print(time_manager.custom(2042, 10, 10, 10, 10, 10, 2))
+
+
+
+
 
 if __name__ == '__main__':
     main()

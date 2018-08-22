@@ -48,6 +48,7 @@ class Database(object):
 
     def put(self, hexsha, authored_date, committer_date):
         """ stores to the sqlitedb """
+        # TODO Check if data valid
         identifyer = self.crypto.hmac(hexsha)
         hexsha = self.crypto.encrypt(hexsha)
         committer_date = self.crypto.encrypt(committer_date)
