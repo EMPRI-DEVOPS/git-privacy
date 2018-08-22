@@ -40,7 +40,7 @@ class Database(object):
             for row in all_data.fetchall():
                 result_list[self.crypto.decrypt(row[1])] = self.crypto.decrypt(row[2])
 
-                return result_list
+            return result_list
         except Exception as e:
                 raise e
         finally:

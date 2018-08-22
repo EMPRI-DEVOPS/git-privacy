@@ -116,7 +116,6 @@ def do_log(privacy, db_connection):
 
     try:
         magic_list = db_connection.get()
-
         for commit_id in text:
             commit = repo.commit(commit_id)
             print(colorama.Fore.YELLOW +"commit {}".format(commit.hexsha))
