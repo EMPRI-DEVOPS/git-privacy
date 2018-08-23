@@ -135,7 +135,7 @@ def do_log(privacy, db_connection):
             print("\t {} ".format(commit.message))
     except sqlite3.OperationalError as db_e:
         print(db_e)
-        print("No data found in Database")
+        print("No data found in Database "+db_connection.get_path())
 
 
 
@@ -152,16 +152,18 @@ def main():
             repo_path = os.getcwd()
             config = read_config(repo_path)
         except Exception as e:
+            #Ende
             raise e
     try:
         privacy = crypto.Crypto(config["salt"], str(config["password"]))
         db_connection = database.Database(config["databasepath"], privacy)
-    except Exception as e:
-        raise e
-    else:
-        privacy = crypto.Crypto(config["salt"], str(config["password"]))
-        db_connection = database.Database(repo_path+"/history.db", privacy)
-
+    except Exception:
+        try:
+            privacy = crypto.Crypto(config["salt"], str(config["password"]))
+            db_connection = database.Database(repo_path+"/history.db", privacy)
+        except Exception as e:
+            #Ende
+            raise e
     try:
         time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
         repo = Repo(repo_path)
@@ -178,68 +180,15 @@ def main():
         except Exception as e:
             raise e
     elif ARGS.log:
-        pass
+        do_log(privacy, db_connection)
     elif ARGS.clean:
-        pass
+        db_connection.clean_database(repo.git.rev_list("master").splitlines()) #TODO
     elif ARGS.check:
         pass
     else:
         PARSER.print_help()
-        #PARSER.exit()
 
     sys.exit()
-
-"""
-
-    if ARGS.getstamp:
-        if ARGS.gitdir:
-            repo_path = os.path.expanduser(ARGS.gitdir)
-            config = read_config(repo_path)
-
-            # init modules
-            privacy = crypto.Crypto(config["salt"], str(config["password"]))
-            if config["databasepath"] == "notdefined":
-                db_connection = database.Database(repo_path+"/history.db", privacy)
-            else:
-                db_connection = database.Database(config["databasepath"], privacy)
-
-            time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
-            repo = Repo(repo_path)
-            time_stamp = time_manager.now() # TODO
-            print(time_manager.get_next_timestamp(repo, time_stamp))
-    if ARGS.log:
-        if ARGS.gitdir:
-            repo_path = os.path.expanduser(ARGS.gitdir)
-            config = read_config(repo_path)
-
-            # init modules
-            privacy = crypto.Crypto(config["salt"], str(config["password"]))
-            if config["databasepath"] == "notdefined":
-                db_connection = database.Database(repo_path+"/history.db", privacy)
-            else:
-                db_connection = database.Database(config["databasepath"], privacy)
-            do_log(privacy, db_connection)
-    elif ARGS.clean:
-        db_connection.clean_database(repo.git.rev_list("master").splitlines())
-    elif ARGS.hexsha is not None and ARGS.a_date is not None:
-        db_connection.put(ARGS.hexsha, ARGS.a_date, ARGS.c_date)
-
-
-"""
-
-    # Open Config file
-
-
-
-
-
-
-
-    #print(time_manager.custom(2042, 10, 10, 10, 10, 10, 2))
-
-
-
-
 
 if __name__ == '__main__':
     main()

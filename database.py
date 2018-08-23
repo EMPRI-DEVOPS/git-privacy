@@ -13,6 +13,10 @@ class Database(object):
             raise e
         self.crypto = crypto
         self.database_cursor = self.database.cursor()
+        self.databasepath = databasepath
+
+    def get_path(self):
+        return self.databasepath
 
     def clean_database(self, commit_id_list):
         """Removes entrys that do no longer exist in the db"""
