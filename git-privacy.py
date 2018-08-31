@@ -114,7 +114,7 @@ def do_log(privacy, db_connection):
     current_working_directory = os.getcwd()
 
     repo = Repo(current_working_directory)
-    text = repo.git.rev_list("master").splitlines()
+    text = repo.git.rev_list("master").splitlines()#TODO
     print("loaded {} commits".format(len(text)))
 
     try:
@@ -184,7 +184,18 @@ def main():
     elif ARGS.clean:
         db_connection.clean_database(repo.git.rev_list("master").splitlines()) #TODO
     elif ARGS.check:
-        pass
+        """   Check for timzeone change    """
+        repo = Repo(repo_path)
+        text = repo.git.rev_list("master").splitlines()#TODO
+        commit = repo.commit(text[0])
+        last_stamp = time_manager.get_timezone(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))[1]
+        next_stamp = time_manager.get_timezone(time_manager.now())[1]
+        if last_stamp != next_stamp:
+            print("Warning: Your timezone has changed.")
+            # TODO
+        """   --------------------------    """
+
+
     else:
         PARSER.print_help()
 
