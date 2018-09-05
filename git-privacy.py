@@ -106,16 +106,16 @@ def write_salt(gitdir, salt):
     config_writer.set_value("privacy", "salt", salt)
     config_writer.release()
 
-def do_log(privacy, db_connection):
+def do_log(db_connection):
     """ creates a git log like output """
     colorama.init(autoreset=True)
 
     time_manager = timestamp.TimeStamp()
-    current_working_directory = os.getcwd()
+    current_working_directory = os.getcwd() #TODO d
 
     repo = Repo(current_working_directory)
-    text = repo.git.rev_list("master").splitlines()#TODO
-    print("loaded {} commits".format(len(text)))
+    text = repo.git.rev_list(repo.active_branch.name).splitlines()
+    print("loaded {} commits, branch: {}".format(len(text), repo.active_branch.name))
 
     try:
         magic_list = db_connection.get()
@@ -182,11 +182,11 @@ def main():
     elif ARGS.log:
         do_log(privacy, db_connection)
     elif ARGS.clean:
-        db_connection.clean_database(repo.git.rev_list("master").splitlines()) #TODO
+        db_connection.clean_database(repo.git.rev_list(repo.active_branch.name).splitlines())
     elif ARGS.check:
         """   Check for timzeone change    """
         repo = Repo(repo_path)
-        text = repo.git.rev_list("master").splitlines()#TODO
+        text = repo.git.rev_list(repo.active_branch.name).splitlines()
         commit = repo.commit(text[0])
         last_stamp = time_manager.get_timezone(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))[1]
         next_stamp = time_manager.get_timezone(time_manager.now())[1]

@@ -1,21 +1,22 @@
 """database adapter"""
 import sqlite3
-import os
-import crypto
+#import os
+import crypto # pylint: disable=unused-import
 
-class Database(object):
+class Database():
     """docstring for Database"""
-    def __init__(self, databasepath, crypto):
+    def __init__(self, databasepath, my_crypto):
         super(Database, self).__init__()
         try:
             self.database = sqlite3.connect(databasepath)
         except Exception as e:
             raise e
-        self.crypto = crypto
+        self.crypto = my_crypto
         self.database_cursor = self.database.cursor()
         self.databasepath = databasepath
 
     def get_path(self):
+        """returns path to database"""
         return self.databasepath
 
     def clean_database(self, commit_id_list):

@@ -7,7 +7,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-class Crypto(object):
+class Crypto():
     """crypto stuff"""
     def __init__(self, salt, password):
         super(Crypto, self).__init__()
@@ -39,6 +39,7 @@ class Crypto(object):
             print("Decrypt error {}".format(decryption_error), file=sys.stderr)
 
     def hmac(self, data):
+        """ creates a hmac with password and data"""
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -47,4 +48,3 @@ class Crypto(object):
             backend=default_backend()
         )
         return base64.urlsafe_b64encode(kdf.derive(data.encode('utf-8'))).decode('utf-8')
-
