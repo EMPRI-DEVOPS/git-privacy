@@ -180,7 +180,7 @@ def main():
         except Exception as e:
             raise e
     elif ARGS.log:
-        do_log(privacy, db_connection)
+        do_log(db_connection)
     elif ARGS.clean:
         db_connection.clean_database(repo.git.rev_list(repo.active_branch.name).splitlines())
     elif ARGS.check:
