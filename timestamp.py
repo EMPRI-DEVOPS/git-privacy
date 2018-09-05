@@ -126,10 +126,10 @@ class TimeStamp:
         """ time in utc + offset"""
         return datetime.datetime.fromtimestamp(seconds, datetime.timezone(datetime.timedelta(seconds=-time_zone))).strftime("%a %b %d %H:%M:%S %Y %z")
 
-    def get_next_timestamp(self, repo, timestamp):
+    def get_next_timestamp(self, repo, ):
         """ returns the next timestamp"""
         if self.mode == "reduce":
-            stamp = self.reduce(timestamp)
+            stamp = self.reduce(self.now())
             return stamp
         if self.mode == "simple":
             commit_id = repo.git.rev_list(repo.active_branch.name).splitlines()[1]

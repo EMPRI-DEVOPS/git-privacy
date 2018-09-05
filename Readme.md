@@ -1,6 +1,11 @@
 # pyGitPrivacy
 
 ## Installation
+
++ clone the repository
++ link from `/usr/local/bin/git-privacy` to `/path/to/repo/git-privacy.py`
+    + `ln -s /path/to/repo/git-privacy.py /usr/local/bin/git-privacy`
+
 Copy `post-commit` to `yourRepo/.git/hooks/` (make sure that it is executable)
 
 Edit your `yourRepo/.git/config` and add the following:

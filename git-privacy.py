@@ -137,9 +137,6 @@ def do_log(db_connection):
         print(db_e)
         print("No data found in Database "+db_connection.get_path())
 
-
-
-
 def main():
     """start stuff"""
     repo_path = None
@@ -172,8 +169,7 @@ def main():
 
 
     if ARGS.getstamp:
-        time_stamp = time_manager.now() # TODO
-        print(time_manager.get_next_timestamp(repo, time_stamp))
+        print(time_manager.get_next_timestamp(repo))
     elif ARGS.store:
         try:
             db_connection.put(ARGS.hexsha, ARGS.a_date, ARGS.c_date)
@@ -184,17 +180,16 @@ def main():
     elif ARGS.clean:
         db_connection.clean_database(repo.git.rev_list(repo.active_branch.name).splitlines())
     elif ARGS.check:
-        """   Check for timzeone change    """
+        # Check for timzeone change
         repo = Repo(repo_path)
         text = repo.git.rev_list(repo.active_branch.name).splitlines()
         commit = repo.commit(text[0])
         last_stamp = time_manager.get_timezone(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))[1]
         next_stamp = time_manager.get_timezone(time_manager.now())[1]
-        if last_stamp != next_stamp:
+        if last_stamp == next_stamp:
             print("Warning: Your timezone has changed.")
-            # TODO
-        """   --------------------------    """
-
+            #input("prompt")
+            sys.exit(1)
 
     else:
         PARSER.print_help()
