@@ -1,5 +1,11 @@
 # pyGitPrivacy
 
+## Dependencies
+
+- gitpython
+- colorama
+- pandas
+
 ## Installation
 
 + clone the repository

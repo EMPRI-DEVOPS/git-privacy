@@ -7,10 +7,7 @@ class Database():
     """docstring for Database"""
     def __init__(self, databasepath, my_crypto):
         super(Database, self).__init__()
-        try:
-            self.database = sqlite3.connect(databasepath)
-        except Exception as e:
-            raise e
+        self.database = sqlite3.connect(databasepath)
         self.crypto = my_crypto
         self.database_cursor = self.database.cursor()
         self.databasepath = databasepath

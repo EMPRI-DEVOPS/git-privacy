@@ -5,11 +5,13 @@ git privacy
 import argparse
 import os
 import sys
+import readline # pylint: disable=unused-import
 import base64
 import configparser
 import sqlite3
-from git import Repo
+import git
 import colorama
+import pandas
 import timestamp
 import crypto
 import database
@@ -59,15 +61,13 @@ PARSER.add_argument("-store", help="-store", action="store_true", required=False
 PARSER.add_argument("-log", help="-log", action="store_true", required=False)
 PARSER.add_argument("-clean", help="-clean", action="store_true", required=False)
 PARSER.add_argument("-check", help="-check", action="store_true", required=False)
+PARSER.add_argument("-anonymize", help="-anonymize", action="store_true", required=False)
 
 ARGS = PARSER.parse_args()
 
 def read_config(gitdir):
-    """ Reads git config and returns dict with:
-        mode
-        password
-        and salt """
-    repo = Repo(gitdir)
+    """ Reads git config and returns a dictionary"""
+    repo = git.Repo(gitdir)
     config = {}
     config_reader = repo.config_reader(config_level='repository')
     options = ["password", "mode", "salt", "limit", "databasepath"]
@@ -101,25 +101,24 @@ def read_config(gitdir):
 
 def write_salt(gitdir, salt):
     """ Writes salt to config """
-    repo = Repo(gitdir)
+    repo = git.Repo(gitdir)
     config_writer = repo.config_writer(config_level='repository')
     config_writer.set_value("privacy", "salt", salt)
     config_writer.release()
 
-def do_log(db_connection):
+def do_log(db_connection, repo_path):
     """ creates a git log like output """
     colorama.init(autoreset=True)
 
     time_manager = timestamp.TimeStamp()
-    current_working_directory = os.getcwd() #TODO d
 
-    repo = Repo(current_working_directory)
-    text = repo.git.rev_list(repo.active_branch.name).splitlines()
-    print("loaded {} commits, branch: {}".format(len(text), repo.active_branch.name))
+    repo = git.Repo(repo_path)
+    commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
+    print("loaded {} commits, branch: {}".format(len(commit_list), repo.active_branch.name))
 
     try:
         magic_list = db_connection.get()
-        for commit_id in text:
+        for commit_id in commit_list:
             commit = repo.commit(commit_id)
             print(colorama.Fore.YELLOW +"commit {}".format(commit.hexsha))
             print("Author: {}".format(commit.author))
@@ -129,15 +128,40 @@ def do_log(db_connection):
                 print(colorama.Fore.GREEN + "RealDate: {}".format(real_date))
             else:
                 print("Date: {}".format(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)))
-
-
-
             print("\t {} ".format(commit.message))
     except sqlite3.OperationalError as db_e:
         print(db_e)
-        print("No data found in Database "+db_connection.get_path())
+        print("No data found in Database {}".format(db_connection.get_path()))
 
-def main():
+def anonymize_repo(repo_path):
+    """ anonymize repo """
+    time_manager = timestamp.TimeStamp(limit="16-18",pattern="h,m,s")
+    repo = git.Repo(repo_path)
+    commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
+    for commit in commit_list:
+        commit = repo.commit(commit)
+        print(commit.hexsha, time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))
+    try:
+        start_date = input("Enter the start Date [{}]:".format(time_manager.start_date()))
+        try:
+            start_date = time_manager.start_date(start_date)
+        except ValueError:
+            print("ERROR: Invalid Date")
+        print("Your stardate will be: {}".format(start_date))
+        datelist = pandas.date_range(start_date, periods=len(commit_list)).tolist()
+        for date in datelist:
+            print(time_manager.reduce(date))
+
+
+
+
+
+
+    except KeyboardInterrupt:
+        print("\n\n ERROR: Cancelled by user")
+
+
+def main(): # pylint: disable=too-many-branches
     """start stuff"""
     repo_path = None
     config = None
@@ -148,25 +172,22 @@ def main():
         try:
             repo_path = os.getcwd()
             config = read_config(repo_path)
-        except Exception as e:
-            #Ende
-            raise e
+        except (git.InvalidGitRepositoryError) as git_error:
+            print("Can't load repository: {}".format(git_error), file=sys.stderr)
+            sys.exit(1)
     try:
-        privacy = crypto.Crypto(config["salt"], str(config["password"]))
-        db_connection = database.Database(config["databasepath"], privacy)
-    except Exception:
-        try:
+        if config["databasepath"] != "notdefined":
+            privacy = crypto.Crypto(config["salt"], str(config["password"]))
+            db_connection = database.Database(config["databasepath"], privacy)
+        else:
             privacy = crypto.Crypto(config["salt"], str(config["password"]))
             db_connection = database.Database(repo_path+"/history.db", privacy)
-        except Exception as e:
-            #Ende
-            raise e
-    try:
-        time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
-        repo = Repo(repo_path)
-    except Exception as e:
-        raise e
+    except sqlite3.Error as sq_error:
+        print("A database error occurred: {}".format(sq_error.args[0]), file=sys.stderr)
+        sys.exit(1)
 
+    time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
+    repo = git.Repo(repo_path)
 
     if ARGS.getstamp:
         print(time_manager.get_next_timestamp(repo))
@@ -176,21 +197,22 @@ def main():
         except Exception as e:
             raise e
     elif ARGS.log:
-        do_log(db_connection)
+        do_log(db_connection, repo_path)
     elif ARGS.clean:
         db_connection.clean_database(repo.git.rev_list(repo.active_branch.name).splitlines())
     elif ARGS.check:
         # Check for timzeone change
-        repo = Repo(repo_path)
-        text = repo.git.rev_list(repo.active_branch.name).splitlines()
-        commit = repo.commit(text[0])
+        repo = git.Repo(repo_path)
+        commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
+        commit = repo.commit(commit_list[0])
         last_stamp = time_manager.get_timezone(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))[1]
         next_stamp = time_manager.get_timezone(time_manager.now())[1]
         if last_stamp == next_stamp:
             print("Warning: Your timezone has changed.")
             #input("prompt")
             sys.exit(1)
-
+    elif ARGS.anonymize:
+        anonymize_repo(repo_path)
     else:
         PARSER.print_help()
 

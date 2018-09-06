@@ -44,6 +44,12 @@ class TimeStamp:
         timezone = datetime.datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z").strftime("%z")
         return [timestamp, timezone]
 
+    @staticmethod
+    def start_date(timestamp="01.01.1970 00:00:00 +0200"):
+        """parses timestamp for anonymizing Repo"""
+        start = datetime.datetime.strptime(timestamp, "%d.%m.%Y %H:%M:%S %z")
+        return start.strftime("%d.%m.%Y %H:%M:%S %z")
+
     def enforce_limit(self, timestamp):
         """the limit stored in the object will be enforced on the timestamp"""
         if timestamp.hour < self.limit[0]:
@@ -54,7 +60,7 @@ class TimeStamp:
             timestamp -= datetime.timedelta(hours=diff_to_limit)
         return timestamp
 
-    def reduce(self, timestamp):
+    def reduce(self, input_timestamp):
         """replaces the values specifed by the pattern
             y = Year
             M = Month
@@ -62,7 +68,11 @@ class TimeStamp:
             h = hour
             m = minute
             s = second"""
-        timestamp = datetime.datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
+        try:
+            timestamp = datetime.datetime.strptime(input_timestamp, "%a %b %d %H:%M:%S %Y %z")
+        except TypeError:
+            timestamp = input_timestamp
+
 
         if "y" in self.pattern:
             timestamp = timestamp.replace(year=1970) # TODO
