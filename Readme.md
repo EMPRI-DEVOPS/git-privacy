@@ -5,6 +5,8 @@
 - gitpython
 - colorama
 - pandas
+- progressbar2
+- cryptography
 
 ## Installation
 

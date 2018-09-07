@@ -10,6 +10,7 @@ import base64
 import configparser
 import sqlite3
 import git
+import progressbar
 import colorama
 import pandas
 import timestamp
@@ -135,30 +136,41 @@ def do_log(db_connection, repo_path):
 
 def anonymize_repo(repo_path):
     """ anonymize repo """
-    time_manager = timestamp.TimeStamp(limit="16-18",pattern="h,m,s")
+    time_manager = timestamp.TimeStamp(limit="16-18", pattern="h,m,s")
     repo = git.Repo(repo_path)
-    commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
-    for commit in commit_list:
-        commit = repo.commit(commit)
-        print(commit.hexsha, time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))
+    commit_amount = len(repo.git.rev_list(repo.active_branch.name).splitlines())
     try:
         start_date = input("Enter the start Date [{}]:".format(time_manager.start_date()))
+        if start_date == "":
+            start_date = time_manager.start_date()
         try:
             start_date = time_manager.start_date(start_date)
         except ValueError:
             print("ERROR: Invalid Date")
         print("Your stardate will be: {}".format(start_date))
-        datelist = pandas.date_range(start_date, periods=len(commit_list)).tolist()
-        for date in datelist:
-            print(time_manager.reduce(date))
+        datelist = pandas.date_range(start_date, periods=commit_amount).tolist()
+        datelist = [time_manager.reduce(date) for date in datelist]
+        datelist = [time_manager.to_string(date, git_like=True) for date in datelist]
 
+        git_repo = git.Git(repo_path)
+        progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
+        for commit_number in range(commit_amount):
+            date = datelist.pop()
+            commit_hexsha = repo.git.rev_list(repo.active_branch.name).splitlines()[commit_number]
+
+            sub_command = "if [ $GIT_COMMIT = {} ] \n then \n\t export GIT_AUTHOR_DATE=\"{}\"\n \t export GIT_COMMITTER_DATE=\"{}\"\n fi".format(commit_hexsha, date, date)
+            my_command = ["git", "filter-branch", "-f", "--env-filter", sub_command]
+
+            git_repo.execute(command=my_command)
+            progress.update(commit_number)
+        progress.finish()
 
 
 
 
 
     except KeyboardInterrupt:
-        print("\n\n ERROR: Cancelled by user")
+        print("\n\nERROR: Cancelled by user")
 
 
 def main(): # pylint: disable=too-many-branches

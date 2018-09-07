@@ -50,6 +50,13 @@ class TimeStamp:
         start = datetime.datetime.strptime(timestamp, "%d.%m.%Y %H:%M:%S %z")
         return start.strftime("%d.%m.%Y %H:%M:%S %z")
 
+    @staticmethod
+    def to_string(timestamp, git_like=False):
+        """converts timestamp to string"""
+        if git_like:
+            return timestamp.strftime("%d.%m.%Y %H:%M:%S %z")
+        return timestamp.strftime("%a %b %d %H:%M:%S %Y %z")
+
     def enforce_limit(self, timestamp):
         """the limit stored in the object will be enforced on the timestamp"""
         if timestamp.hour < self.limit[0]:
