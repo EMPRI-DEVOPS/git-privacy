@@ -80,9 +80,9 @@ class TimeStamp:
         except TypeError:
             timestamp = input_timestamp
 
-
         if "y" in self.pattern:
-            timestamp = timestamp.replace(year=1970) # TODO
+            # MIN-year: 1970 and MAX-year: 2099
+            timestamp = timestamp.replace(year=random.randrange(1970, 2099, 1))
         if "M" in self.pattern:
             timestamp = timestamp.replace(month=random.randrange(1, 12, 1))
         if "d" in self.pattern:
@@ -143,7 +143,7 @@ class TimeStamp:
         """ time in utc + offset"""
         return datetime.datetime.fromtimestamp(seconds, datetime.timezone(datetime.timedelta(seconds=-time_zone))).strftime("%a %b %d %H:%M:%S %Y %z")
 
-    def get_next_timestamp(self, repo, ):
+    def get_next_timestamp(self, repo):
         """ returns the next timestamp"""
         if self.mode == "reduce":
             stamp = self.reduce(self.now())
@@ -153,14 +153,12 @@ class TimeStamp:
             commit = repo.commit(commit_id)
             last_timestamp = self.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)
             return self.plus_hour(last_timestamp, 1)
-        if self.mode == "no":
-            # TODO
+        if self.mode == "average":
             commits = repo.git.rev_list(repo.active_branch.name).splitlines()
             list_of_stamps = []
             for a, b in self.pairwise(commits):
-                stamp_a = self.seconds_to_gitstamp(repo.commit(a).authored_date, repo.commit(a).author_tz_offset)
-                stamp_b = self.seconds_to_gitstamp(repo.commit(b).authored_date, repo.commit(b).author_tz_offset)
-                list_of_stamps.append([stamp_a, stamp_b])
+                list_of_stamps.append([self.seconds_to_gitstamp(repo.commit(a).authored_date, repo.commit(a).author_tz_offset),
+                                       self.seconds_to_gitstamp(repo.commit(b).authored_date, repo.commit(b).author_tz_offset)])
             last_commit_id = commits[1]
             last_commit = commit = repo.commit(last_commit_id)
             last_timestamp = self.seconds_to_gitstamp(last_commit.authored_date, last_commit.author_tz_offset)

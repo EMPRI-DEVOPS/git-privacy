@@ -164,11 +164,6 @@ def anonymize_repo(repo_path):
             git_repo.execute(command=my_command)
             progress.update(commit_number)
         progress.finish()
-
-
-
-
-
     except KeyboardInterrupt:
         print("\n\nERROR: Cancelled by user")
 
@@ -219,7 +214,7 @@ def main(): # pylint: disable=too-many-branches
         commit = repo.commit(commit_list[0])
         last_stamp = time_manager.get_timezone(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))[1]
         next_stamp = time_manager.get_timezone(time_manager.now())[1]
-        if last_stamp == next_stamp:
+        if last_stamp != next_stamp:
             print("Warning: Your timezone has changed.")
             #input("prompt")
             sys.exit(1)
