@@ -140,7 +140,7 @@ def anonymize_repo(repo_path):
     repo = git.Repo(repo_path)
     commit_amount = len(repo.git.rev_list(repo.active_branch.name).splitlines())
     try:
-        start_date = input("Enter the start Date [{}]:".format(time_manager.start_date()))
+        start_date = input("Enter the start Date [Default: {}]:".format(time_manager.start_date()))
         if start_date == "":
             start_date = time_manager.start_date()
         try:
@@ -148,6 +148,7 @@ def anonymize_repo(repo_path):
         except ValueError:
             print("ERROR: Invalid Date")
         print("Your stardate will be: {}".format(start_date))
+        input("Last time to make a backup (cancel via ctrl+c)")
         datelist = pandas.date_range(start_date, periods=commit_amount).tolist()
         datelist = [time_manager.reduce(date) for date in datelist]
         datelist = [time_manager.to_string(date, git_like=True) for date in datelist]
