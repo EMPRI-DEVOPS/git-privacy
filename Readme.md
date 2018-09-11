@@ -46,3 +46,10 @@ To disable that add the following:
 [advice]
         ignoredHook = false
 ```
+
+Other Commands:
+
+```
+git-privacy -clean     # Removes commits from the DB that no longer exist in your repository
+git-privacy -anonymize # Changes dates on each commit in your repository
+```
