@@ -2,6 +2,12 @@
 
 ## Dependencies
 
+You need to install:
+
+`python3 python3-pip`
+
+Installed by setup:
+
 - gitpython
 - colorama
 - pandas
@@ -11,8 +17,7 @@
 ## Installation
 
 + clone the repository
-+ link from `/usr/local/bin/git-privacy` to `/path/to/repo/git-privacy.py`
-    + `ln -s /path/to/repo/git-privacy.py /usr/local/bin/git-privacy`
++ `sudo python3 setup.py`
 
 Copy `post-commit` to `yourRepo/.git/hooks/` (make sure that it is executable)
 
@@ -47,9 +52,17 @@ To disable that add the following:
         ignoredHook = false
 ```
 
-Other Commands:
+## Optional
+
+Additionally you may install a pre-commit hook which currently checks if your timezone differs from the last commit.
+
+Copy `doc/pre-commit` to `your/repo/.git/hooks`
+
+## Commands
+
+Intended for manual use:
 
 ```
-git-privacy -clean     # Removes commits from the DB that no longer exist in your repository
-git-privacy -anonymize # Changes dates on each commit in your repository
+gitprivacy -clean     # Removes commits from the DB that no longer exist in your repository
+gitprivacy -anonymize # Changes dates on each commit in your repository
 ```

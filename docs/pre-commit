@@ -3,4 +3,4 @@
 gitdir="$(git rev-parse --git-dir)"
 hook="$gitdir/hooks/post-commit"
 
-git privacy -check -gitdir $(git rev-parse --show-toplevel)
+gitprivacy -check -gitdir $(git rev-parse --show-toplevel)
