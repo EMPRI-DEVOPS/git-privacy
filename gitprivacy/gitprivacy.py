@@ -179,8 +179,7 @@ def anonymize_repo(repo_path, time_manager):
             date = datelist.pop()
             sub_command = "if [ $GIT_COMMIT = {} ] \n then \n\t export GIT_AUTHOR_DATE=\"{}\"\n \t export GIT_COMMITTER_DATE=\"{}\"\n fi".format(commit, date, date)
             my_command = ["git", "filter-branch", "-f", "--env-filter", sub_command]
-            print(my_command)
-            print(git_repo.execute(command=my_command))
+            git_repo.execute(command=my_command)
             counter += 1
             progress.update(counter)
         progress.finish()
