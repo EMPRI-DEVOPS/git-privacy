@@ -18,6 +18,8 @@ setup(
     url='https://git.b-brahmer.de/Grotax/pyGitPrivacy',
     license=LICENSE,
     packages=find_packages(exclude=('tests', 'docs')),
+    install_requires=[
+    ],#TODO
     entry_points={
         'console_scripts': [
             'git-privacy = gitprivacy.gitprivacy:main'

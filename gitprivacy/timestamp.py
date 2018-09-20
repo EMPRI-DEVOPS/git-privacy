@@ -45,17 +45,38 @@ class TimeStamp:
         return [timestamp, timezone]
 
     @staticmethod
-    def start_date(timestamp="01.01.1970 00:00:00 +0200"):
+    def simple(timestamp):
         """parses timestamp for anonymizing Repo"""
-        start = datetime.datetime.strptime(timestamp, "%d.%m.%Y %H:%M:%S %z")
-        return start.strftime("%d.%m.%Y %H:%M:%S %z")
+        try:
+            date = datetime.datetime.strptime(timestamp, "%d.%m.%Y %H:%M:%S %z")
+        except:
+            date = datetime.datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
+
+        return date.strftime("%d.%m.%Y %H:%M:%S %z")
 
     @staticmethod
     def to_string(timestamp, git_like=False):
         """converts timestamp to string"""
         if git_like:
-            return timestamp.strftime("%d.%m.%Y %H:%M:%S %z")
-        return timestamp.strftime("%a %b %d %H:%M:%S %Y %z")
+            return timestamp.strftime("%a %b %d %H:%M:%S %Y %z")
+        return timestamp.strftime("%d.%m.%Y %H:%M:%S %z")
+
+    def datelist(self, start_date, end_date, amount):
+        """ returns datelist """
+        start = datetime.datetime.strptime(start_date, "%d.%m.%Y %H:%M:%S %z")
+        end = datetime.datetime.strptime(end_date, "%d.%m.%Y %H:%M:%S %z")
+        diff = (end - start) / (amount - 1)
+        datelist = []
+        current_date = start
+        datelist.append(self.to_string(current_date))
+        for i in range(amount - 2):
+            current_date += diff
+            datelist.append(self.to_string(current_date))
+        datelist.append(self.to_string(end))
+        return datelist
+
+
+
 
     def enforce_limit(self, timestamp):
         """the limit stored in the object will be enforced on the timestamp"""

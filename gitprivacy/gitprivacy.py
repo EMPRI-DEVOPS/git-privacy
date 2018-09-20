@@ -12,7 +12,6 @@ import sqlite3
 import git
 import progressbar
 import colorama
-import pandas
 from . import timestamp
 from . import crypto
 from . import database
@@ -138,32 +137,53 @@ def anonymize_repo(repo_path, time_manager):
     """ anonymize repo """
     repo = git.Repo(repo_path)
     commit_amount = len(repo.git.rev_list(repo.active_branch.name).splitlines())
+    commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
+    first_commit = repo.commit(commit_list[::-1][1])
+    first_stamp = time_manager.simple(time_manager.seconds_to_gitstamp(first_commit.authored_date, first_commit.author_tz_offset))
+
+    last_commit = repo.commit(commit_list[1])
+    last_stamp = time_manager.simple(time_manager.seconds_to_gitstamp(last_commit.authored_date, last_commit.author_tz_offset))
+
+
     try:
-        start_date = input("Enter the start Date [Default: {}]:".format(time_manager.start_date()))
+        start_date = input("Enter the start date [Default: {}]:".format(first_stamp))
         if start_date == "":
-            start_date = time_manager.start_date()
+            start_date = first_stamp
         try:
-            start_date = time_manager.start_date(start_date)
+            start_date = time_manager.simple(start_date)
         except ValueError:
             print("ERROR: Invalid Date")
         print("Your stardate will be: {}".format(start_date))
+
+        end_date = input("Enter the end date [Default: {}]:".format(last_stamp))
+        if end_date == "":
+            end_date = last_stamp
+        try:
+            end_date = time_manager.simple(end_date)
+        except ValueError:
+            print("ERROR: Invalid Date")
+        print("Your stardate will be: {}".format(start_date))
+
         input("Last time to make a backup (cancel via ctrl+c)")
-        datelist = pandas.date_range(start_date, periods=commit_amount).tolist()
-        datelist = [time_manager.reduce(date) for date in datelist]
-        datelist = [time_manager.to_string(date, git_like=True) for date in datelist]
+
+        datelist = time_manager.datelist(start_date, end_date, commit_amount)
+
+
+        #datelist.reverse()
+        #commit_list.reverse()
 
         git_repo = git.Git(repo_path)
         progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
-        for commit_number in range(commit_amount):
+        counter = 0
+        for commit in commit_list:
             date = datelist.pop()
-            commit_hexsha = repo.git.rev_list(repo.active_branch.name).splitlines()[commit_number]
-
-            sub_command = "if [ $GIT_COMMIT = {} ] \n then \n\t export GIT_AUTHOR_DATE=\"{}\"\n \t export GIT_COMMITTER_DATE=\"{}\"\n fi".format(commit_hexsha, date, date)
+            sub_command = "if [ $GIT_COMMIT = {} ] \n then \n\t export GIT_AUTHOR_DATE=\"{}\"\n \t export GIT_COMMITTER_DATE=\"{}\"\n fi".format(commit, date, date)
             my_command = ["git", "filter-branch", "-f", "--env-filter", sub_command]
-
             git_repo.execute(command=my_command)
-            progress.update(commit_number)
+            counter += 1
+            progress.update(counter)
         progress.finish()
+
     except KeyboardInterrupt:
         print("\n\nERROR: Cancelled by user")
 

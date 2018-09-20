@@ -14,7 +14,7 @@ class Database():
 
     def get_path(self):
         """returns path to database"""
-        return self.databasepath
+        return self.databasepath # TODO
 
     def clean_database(self, commit_id_list):
         """Removes entrys that do no longer exist in the db"""
