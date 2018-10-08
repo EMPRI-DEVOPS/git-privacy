@@ -153,7 +153,7 @@ def anonymize_repo(repo_path, time_manager):
             start_date = time_manager.simple(start_date)
         except ValueError:
             print("ERROR: Invalid Date")
-        print("Your stardate will be: {}".format(start_date))
+        print("Your start date will be: {}".format(start_date))
 
         end_date = input("Enter the end date [Default: {}]:".format(last_stamp))
         if end_date == "":
@@ -162,15 +162,15 @@ def anonymize_repo(repo_path, time_manager):
             end_date = time_manager.simple(end_date)
         except ValueError:
             print("ERROR: Invalid Date")
-        print("Your stardate will be: {}".format(start_date))
+        print("Your end date will be: {}".format(end_date))
 
         input("Last time to make a backup (cancel via ctrl+c)")
 
         datelist = time_manager.datelist(start_date, end_date, commit_amount)
 
 
-        datelist.reverse()
-        commit_list.reverse()
+        #datelist.reverse()
+        #commit_list.reverse()
 
         git_repo = git.Git(repo_path)
         progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
