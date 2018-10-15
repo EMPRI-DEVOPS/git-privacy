@@ -195,7 +195,7 @@ def main(): # pylint: disable=too-many-branches
     try:
         repo_path = os.path.expanduser(ARGS.gitdir)
         config = read_config(repo_path)
-    except (TypeError):
+    except TypeError:
         try:
             repo_path = os.getcwd()
             config = read_config(repo_path)

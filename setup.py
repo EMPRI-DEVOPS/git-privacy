@@ -19,7 +19,11 @@ setup(
     license=LICENSE,
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=[
-    ],#TODO
+        'gitpython',
+        'colorama',
+        'progressbar2',
+        'cryptography'
+    ],
     entry_points={
         'console_scripts': [
             'git-privacy = gitprivacy.gitprivacy:main'

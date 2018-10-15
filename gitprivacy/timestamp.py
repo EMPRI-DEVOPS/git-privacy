@@ -5,7 +5,6 @@ import re
 import itertools
 import random
 import calendar
-from git import Repo # pylint: disable=unused-import
 
 class TimeStamp:
     """ Class for dealing with git timestamps"""

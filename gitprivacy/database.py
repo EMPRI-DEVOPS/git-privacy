@@ -1,7 +1,5 @@
 """database adapter"""
 import sqlite3
-#import os
-from . import crypto # pylint: disable=unused-import
 
 class Database():
     """docstring for Database"""
