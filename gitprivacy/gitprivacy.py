@@ -133,7 +133,7 @@ def do_log(db_connection, repo_path):
         print(db_e)
         print("No data found in Database {}".format(db_connection.get_path()))
 
-def anonymize_repo(repo_path, time_manager):
+def anonymize_repo(repo_path, time_manager, db_connection):
     """ anonymize repo """
     repo = git.Repo(repo_path)
     commit_amount = len(repo.git.rev_list(repo.active_branch.name).splitlines())
@@ -169,14 +169,10 @@ def anonymize_repo(repo_path, time_manager):
         datelist = time_manager.datelist(start_date, end_date, commit_amount)
 
 
-        #datelist.reverse()
-        #commit_list.reverse()
-
         git_repo = git.Git(repo_path)
         progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
         counter = 0
-        for commit in commit_list:
-            date = datelist.pop()
+        for commit, date in zip(commit_list, datelist):
             sub_command = "if [ $GIT_COMMIT = {} ] \n then \n\t export GIT_AUTHOR_DATE=\"{}\"\n \t export GIT_COMMITTER_DATE=\"{}\"\n fi".format(commit, date, date)
             my_command = ["git", "filter-branch", "-f", "--env-filter", sub_command]
             git_repo.execute(command=my_command)
@@ -184,11 +180,21 @@ def anonymize_repo(repo_path, time_manager):
             progress.update(counter)
         progress.finish()
 
+        # update the DB
+        print("Updating database ...")
+        commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
+        progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
+        counter = 0
+        for commit, date in zip(commit_list, datelist):
+            db_connection.put(commit, date, date)
+            counter += 1
+            progress.update(counter)
+
     except KeyboardInterrupt:
         print("\n\nERROR: Cancelled by user")
 
 
-def main(): # pylint: disable=too-many-branches
+def main(): # pylint: disable=too-many-branches, too-many-statements
     """start stuff"""
     repo_path = None
     config = None
@@ -241,7 +247,7 @@ def main(): # pylint: disable=too-many-branches
             print("Warning: Your timezone has changed.")
             sys.exit(1)
     elif ARGS.anonymize:
-        anonymize_repo(repo_path, time_manager)
+        anonymize_repo(repo_path, time_manager, db_connection)
     else:
         PARSER.print_help()
 
