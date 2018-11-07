@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 class Crypto():
-    """crypto stuff"""
+    """ Handles all encryption related functions """
     def __init__(self, salt, password):
         super(Crypto, self).__init__()
         kdf = PBKDF2HMAC(
@@ -31,7 +31,7 @@ class Crypto():
     def decrypt(self, data):
         """ Decrypt data with password and salt
             To decrypt you need the same password
-            and salt which was used for encryption"""
+            and salt which was used for encryption """
         try:
             decrypted_data = self.fernet.decrypt(data)
             return decrypted_data.decode('utf-8')
@@ -39,7 +39,7 @@ class Crypto():
             print("Decrypt error {}".format(decryption_error), file=sys.stderr)
 
     def hmac(self, data):
-        """ creates a hmac with password and data"""
+        """ creates a hmac with password and data """
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,

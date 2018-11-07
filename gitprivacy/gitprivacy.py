@@ -144,6 +144,14 @@ def anonymize_repo(repo_path, time_manager, db_connection):
     last_commit = repo.commit(commit_list[1])
     last_stamp = time_manager.simple(time_manager.seconds_to_gitstamp(last_commit.authored_date, last_commit.author_tz_offset))
 
+    # get all old dates
+    datelist_original = []
+    for commit in commit_list:
+        commit_obj = repo.commit(commit)
+        datelist_original.append([
+            time_manager.seconds_to_gitstamp(commit_obj.authored_date, commit_obj.author_tz_offset),
+            time_manager.seconds_to_gitstamp(commit_obj.committed_date, commit_obj.committed_date)
+        ])
 
     try:
         start_date = input("Enter the start date [Default: {}]:".format(first_stamp))
@@ -185,7 +193,7 @@ def anonymize_repo(repo_path, time_manager, db_connection):
         commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
         progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
         counter = 0
-        for commit, date in zip(commit_list, datelist):
+        for commit, date in zip(commit_list, datelist_original):
             db_connection.put(commit, date, date)
             counter += 1
             progress.update(counter)

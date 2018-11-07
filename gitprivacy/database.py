@@ -2,7 +2,7 @@
 import sqlite3
 
 class Database():
-    """docstring for Database"""
+    """ handeling the database """
     def __init__(self, databasepath, my_crypto):
         super(Database, self).__init__()
         self.database = sqlite3.connect(databasepath)
@@ -11,11 +11,11 @@ class Database():
         self.databasepath = databasepath
 
     def get_path(self):
-        """returns path to database"""
-        return self.databasepath # TODO
+        """ returns path to database """
+        return self.databasepath
 
     def clean_database(self, commit_id_list):
-        """Removes entrys that do no longer exist in the db"""
+        """ Removes entrys that do no longer exist in the repository from the database """
         commit_id_list = map(self.crypto.hmac, commit_id_list)
         counter = 0
         try:
@@ -25,8 +25,8 @@ class Database():
                     self.database_cursor.execute('DELETE FROM history WHERE identifyer=?', (row[0],))
                     counter += 1
             print("Deleted {} entrys".format(counter))
-        except Exception as e:
-            raise e
+        except Exception as db_error:
+            raise db_error
         finally:
             self.database.commit()
             self.database.close()
@@ -41,8 +41,8 @@ class Database():
                 result_list[self.crypto.decrypt(row[1])] = self.crypto.decrypt(row[2])
 
             return result_list
-        except Exception as e:
-                raise e
+        except Exception as db_error:
+            raise db_error
         finally:
             self.database.close()
 
@@ -57,9 +57,8 @@ class Database():
         try:
             self.database_cursor.execute("CREATE TABLE IF NOT EXISTS history (identifyer text, hexsha text, authored_date text, committer_date text)")
             self.database_cursor.execute("INSERT INTO history VALUES (?,?,?,?)", (identifyer, hexsha, authored_date, committer_date))
-        except Exception as e:
-            # TODO
-            raise e
+        except Exception as db_error:
+            raise db_error
         finally:
             self.database.commit()
             self.database.close()
