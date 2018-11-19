@@ -10,9 +10,13 @@ class TimeStamp:
     """ Class for dealing with git timestamps"""
     def __init__(self, pattern="s", limit=False, mode="simple"):
         super(TimeStamp, self).__init__()
-        foo_bar = re.search('([0-9]+)-([0-9]+)', str(limit))
-        if limit is not False:
+
+        try:
+            foo_bar = re.search('([0-9]+)-([0-9]+)', str(limit))
             self.limit = [int(foo_bar.group(1)), int(foo_bar.group(2))]
+        except AttributeError:
+            self.limit = False
+
         self.mode = mode
         self.pattern = pattern
 
@@ -109,10 +113,10 @@ class TimeStamp:
             max_day = calendar.monthrange(timestamp.year, timestamp.month)[1]
             timestamp = timestamp.replace(day=random.randrange(1, max_day, 1))
         if "h" in self.pattern:
-            if self.limit is not False:
-                timestamp = timestamp.replace(hour=random.randrange(self.limit[0], self.limit[1], 1))
-            else:
+            if self.limit is False:
                 timestamp = timestamp.replace(hour=random.randrange(1, 24, 1))
+            else:
+                timestamp = timestamp.replace(hour=random.randrange(self.limit[0], self.limit[1], 1))
         if "m" in self.pattern:
             timestamp = timestamp.replace(minute=random.randrange(1, 60, 1))
         if "s" in self.pattern:

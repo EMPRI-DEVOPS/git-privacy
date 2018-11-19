@@ -21,47 +21,42 @@ PARSER = argparse.ArgumentParser()
 ARGUMENTS = {
     "hexsha": {
         "argument": "-hexsha",
-        "metavar": "hexsha",
         "dest": "hexsha",
-        "help": "-hexsha 7dsfg...",
+        "help": "-hexsha 7dsfg... , A Commit ID in hexadecimal form",
         "required": False
     },
     "gitdir": {
         "argument": "-gitdir",
-        "metavar": "gitdir",
         "dest": "gitdir",
-        "help": "-gitdir /home/user/git/somerepo",
+        "help": "-gitdir /home/user/git/somerepo , The Path to your Git Repsitory",
         "required": False
     },
     "a_date": {
         "argument": "-a_date",
-        "metavar": "a_date",
         "dest": "a_date",
-        "help": "-a_date ",
+        "help": "The Author date ",
         "required": False
     },
     "c_date": {
         "argument": "-c_date",
-        "metavar": "c_date",
         "dest": "c_date",
-        "help": "-c_date ",
+        "help": "The Commiter date. ",
         "required": False
     }
 }
 
 for arg in ARGUMENTS:
-    PARSER.add_argument(ARGUMENTS[arg]["argument"], metavar=ARGUMENTS[arg]["metavar"],
-                        dest=ARGUMENTS[arg]["dest"], help=ARGUMENTS[arg]["help"],
+    PARSER.add_argument(ARGUMENTS[arg]["argument"], dest=ARGUMENTS[arg]["dest"], help=ARGUMENTS[arg]["help"],
                         required=ARGUMENTS[arg]["required"])
 
 # Command Flags
 
-PARSER.add_argument("-getstamp", help="-getstamp", action="store_true", required=False)
-PARSER.add_argument("-store", help="-store", action="store_true", required=False)
-PARSER.add_argument("-log", help="-log", action="store_true", required=False)
-PARSER.add_argument("-clean", help="-clean", action="store_true", required=False)
-PARSER.add_argument("-check", help="-check", action="store_true", required=False)
-PARSER.add_argument("-anonymize", help="-anonymize", action="store_true", required=False)
+PARSER.add_argument("-getstamp", help="Get a new stamp depending on your chosen method (see config)", action="store_true", required=False)
+PARSER.add_argument("-store", help="If you want to store a commit in the database you have to provide: hexsha, a_date and c_date", action="store_true", required=False)
+PARSER.add_argument("-log", help="Display a git log like history", action="store_true", required=False)
+PARSER.add_argument("-clean", help="Remove commits from your database that no longer exist", action="store_true", required=False)
+PARSER.add_argument("-check", help="Check for potential problems, currently only timezone", action="store_true", required=False)
+PARSER.add_argument("-anonymize", help="Anonymize a existing repository, follow the instructions", action="store_true", required=False)
 
 ARGS = PARSER.parse_args()
 
@@ -86,7 +81,7 @@ def read_config(gitdir):
                 print("error no password", file=sys.stderr)
                 raise missing_option
             elif missing_option.option == "limit":
-                print("no limit", file=sys.stderr)
+                config["limit"] = False
             elif missing_option.option == "databasepath":
                 print("databasepath not defined using path to repository", file=sys.stderr)
                 config["databasepath"] = "notdefined"
@@ -201,6 +196,19 @@ def anonymize_repo(repo_path, time_manager, db_connection):
     except KeyboardInterrupt:
         print("\n\nERROR: Cancelled by user")
 
+def connect_to_database(config, repo_path):
+    try:
+        if config["databasepath"] != "notdefined":
+            privacy = crypto.Crypto(config["salt"], str(config["password"]))
+            db_connection = database.Database(config["databasepath"], privacy)
+        else:
+            privacy = crypto.Crypto(config["salt"], str(config["password"]))
+            db_connection = database.Database(repo_path+"/history.db", privacy)
+    except sqlite3.Error as sq_error:
+        print("A database error occurred: {}".format(sq_error.args[0]), file=sys.stderr)
+        sys.exit(1)
+
+    return db_connection
 
 def main(): # pylint: disable=too-many-branches, too-many-statements
     """start stuff"""
@@ -219,30 +227,23 @@ def main(): # pylint: disable=too-many-branches, too-many-statements
         except configparser.NoSectionError:
             print("Not configured", file=sys.stderr)
             sys.exit(1)
-    try:
-        if config["databasepath"] != "notdefined":
-            privacy = crypto.Crypto(config["salt"], str(config["password"]))
-            db_connection = database.Database(config["databasepath"], privacy)
-        else:
-            privacy = crypto.Crypto(config["salt"], str(config["password"]))
-            db_connection = database.Database(repo_path+"/history.db", privacy)
-    except sqlite3.Error as sq_error:
-        print("A database error occurred: {}".format(sq_error.args[0]), file=sys.stderr)
-        sys.exit(1)
-
-    time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"]) #TODO
+    time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
     repo = git.Repo(repo_path)
 
     if ARGS.getstamp:
         print(time_manager.get_next_timestamp(repo))
     elif ARGS.store:
         try:
+            db_connection = connect_to_database(config, repo_path)
             db_connection.put(ARGS.hexsha, ARGS.a_date, ARGS.c_date)
-        except Exception as e:
-            raise e
+        except sqlite3.Error as db_error:
+            print("Cant't write to your database: {}".format(db_error), file=sys.stderr)
+            sys.exit(1)
     elif ARGS.log:
+        db_connection = connect_to_database(config, repo_path)
         do_log(db_connection, repo_path)
     elif ARGS.clean:
+        db_connection = connect_to_database(config, repo_path)
         db_connection.clean_database(repo.git.rev_list(repo.active_branch.name).splitlines())
     elif ARGS.check:
         # Check for timzeone change
@@ -253,8 +254,9 @@ def main(): # pylint: disable=too-many-branches, too-many-statements
         next_stamp = time_manager.get_timezone(time_manager.now())[1]
         if last_stamp != next_stamp:
             print("Warning: Your timezone has changed.")
-            sys.exit(1)
+            # sys.exit(1)
     elif ARGS.anonymize:
+        db_connection = connect_to_database(config, repo_path)
         anonymize_repo(repo_path, time_manager, db_connection)
     else:
         PARSER.print_help()
