@@ -78,19 +78,6 @@ class TimeStamp:
         datelist.append(self.to_string(end))
         return datelist
 
-
-
-
-    def enforce_limit(self, timestamp):
-        """the limit stored in the object will be enforced on the timestamp"""
-        if timestamp.hour < self.limit[0]:
-            diff_to_limit = self.limit[0] - timestamp.hour
-            timestamp += datetime.timedelta(hours=diff_to_limit)
-        elif timestamp.hour > self.limit[1]:
-            diff_to_limit = timestamp.hour - self.limit[1]
-            timestamp -= datetime.timedelta(hours=diff_to_limit)
-        return timestamp
-
     def reduce(self, input_timestamp):
         """replaces the values specifed by the pattern
             y = Year
@@ -140,13 +127,6 @@ class TimeStamp:
         """adds hour to timestamp and returns"""
         timestamp = datetime.datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
         timestamp += datetime.timedelta(hours=hours)
-        #print(timestamp)
-        if timestamp.hour < self.limit[0]:
-            diff_to_limit = self.limit[0] - timestamp.hour
-            timestamp += datetime.timedelta(hours=diff_to_limit)
-        elif timestamp.hour > self.limit[1]:
-            diff_to_limit = timestamp.hour - self.limit[1]
-            timestamp -= datetime.timedelta(hours=diff_to_limit)
         return timestamp.strftime("%a %b %d %H:%M:%S %Y %z")
 
     @staticmethod

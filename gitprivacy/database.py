@@ -22,7 +22,7 @@ class Database():
             all_data = self.database_cursor.execute("SELECT * FROM history")
             for row in all_data.fetchall():
                 if row[0] not in commit_id_list:
-                    self.database_cursor.execute('DELETE FROM history WHERE identifyer=?', (row[0],))
+                    self.database_cursor.execute('DELETE FROM history WHERE identifier=?', (row[0],))
                     counter += 1
             print("Deleted {} entrys".format(counter))
         except Exception as db_error:
@@ -30,7 +30,6 @@ class Database():
         finally:
             self.database.commit()
             self.database.close()
-
 
     def get(self):
         """ reads from the sqlitedb """
@@ -46,17 +45,16 @@ class Database():
         finally:
             self.database.close()
 
-    def put(self, hexsha, authored_date, committer_date):
+    def put(self, hexsha, author_date, commit_date):
         """ stores to the sqlitedb """
-        # TODO Check if data valid
-        identifyer = self.crypto.hmac(hexsha)
+        identifier = self.crypto.hmac(hexsha)
         hexsha = self.crypto.encrypt(hexsha)
-        committer_date = self.crypto.encrypt(committer_date)
-        authored_date = self.crypto.encrypt(authored_date)
+        commit_date = self.crypto.encrypt(commit_date)
+        author_date = self.crypto.encrypt(author_date)
 
         try:
-            self.database_cursor.execute("CREATE TABLE IF NOT EXISTS history (identifyer text, hexsha text, authored_date text, committer_date text)")
-            self.database_cursor.execute("INSERT INTO history VALUES (?,?,?,?)", (identifyer, hexsha, authored_date, committer_date))
+            self.database_cursor.execute("CREATE TABLE IF NOT EXISTS history (identifier text, hexsha text, author_date text, commit_date text)")
+            self.database_cursor.execute("INSERT INTO history VALUES (?,?,?,?)", (identifier, hexsha, author_date, commit_date))
         except Exception as db_error:
             raise db_error
         finally:

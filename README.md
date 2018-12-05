@@ -10,14 +10,13 @@ Installed by setup:
 
 - gitpython
 - colorama
-- pandas
 - progressbar2
 - cryptography
 
 ## Installation
 
-+ clone the repository
-+ `sudo python3 setup.py`
++ clone the repository and change directory
++ `sudo pip3 install .`
 
 Copy `post-commit` to `yourRepo/.git/hooks/` (make sure that it is executable)
 
@@ -33,7 +32,8 @@ Edit your `yourRepo/.git/config` and add the following:
 ```
 + password -> your password
 + mode
-    + simple -> adds 1 hour to the last commit
+    + simple -> adds 1 hour to the last commit (not recommended)
+    + average -> also not recommended check code if interested
     + reduce -> accuracy of the timestamp is reduced by replacing the values defined by `pattern`
 + pattern
     + y = Year
@@ -63,6 +63,7 @@ Copy `doc/pre-commit` to `your/repo/.git/hooks`
 Intended for manual use:
 
 ```
-gitprivacy -clean     # Removes commits from the DB that no longer exist in your repository
-gitprivacy -anonymize # Changes dates on each commit in your repository
+git-privacy -log       # git log like function
+git-privacy -clean     # Removes commits from the DB that no longer exist in your repository
+git-privacy -anonymize # Changes dates on each commit in your repository
 ```

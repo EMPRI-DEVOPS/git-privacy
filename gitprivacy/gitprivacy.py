@@ -5,7 +5,6 @@ git privacy
 import argparse
 import os
 import sys
-import readline # pylint: disable=unused-import
 import base64
 import configparser
 import sqlite3
@@ -244,7 +243,11 @@ def main(): # pylint: disable=too-many-branches, too-many-statements
         do_log(db_connection, repo_path)
     elif ARGS.clean:
         db_connection = connect_to_database(config, repo_path)
-        db_connection.clean_database(repo.git.rev_list(repo.active_branch.name).splitlines())
+        commit_list = []
+        for branch in repo.branches:
+            commit_list.append(repo.git.rev_list(branch).splitlines())
+        flat_list = [item for sublist in commit_list for item in sublist]
+        db_connection.clean_database(set(flat_list))
     elif ARGS.check:
         # Check for timzeone change
         repo = git.Repo(repo_path)

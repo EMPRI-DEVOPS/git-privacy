@@ -10,7 +10,7 @@ with open('LICENSE') as f:
 
 setup(
     name='gitprivacy',
-    version='0.0.1',
+    version='1.0.0',
     description='Git extension that adds timestamp blurring',
     long_description=README,
     author='Benjamin Brahmer',
