@@ -201,7 +201,8 @@ def connect_to_database(config, repo_path):
     try:
         if config["databasepath"] != "notdefined":
             privacy = crypto.Crypto(config["salt"], str(config["password"]))
-            db_connection = database.Database(config["databasepath"], privacy)
+            db_connection = database.Database(
+                os.path.expanduser(config["databasepath"]), privacy)
         else:
             privacy = crypto.Crypto(config["salt"], str(config["password"]))
             db_connection = database.Database(repo_path+"/history.db", privacy)
