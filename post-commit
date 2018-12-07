@@ -5,7 +5,7 @@ hook="$gitdir/hooks/post-commit"
 
 author_date=$(git log -1 --format=%ad)
 committer_date=$(git log -1 --format=%cd)
-date=$(python3 /usr/local/bin/gitprivacy -getstamp -gitdir "$(git rev-parse --show-toplevel)")
+date=$(git-privacy -getstamp -gitdir "$(git rev-parse --show-toplevel)")
 
 [ -x $hook ] && chmod -x $hook
 
@@ -13,4 +13,4 @@ GIT_COMMITTER_DATE="$date" git commit --amend --date "$date" -C HEAD -n
 
 chmod +x $hook
 
-gitprivacy -store -gitdir $(git rev-parse --show-toplevel) -hexsha $(git rev-parse HEAD) -a_date "$author_date" -c_date "$committer_date"
+git-privacy -store -gitdir $(git rev-parse --show-toplevel) -hexsha $(git rev-parse HEAD) -a_date "$author_date" -c_date "$committer_date"
