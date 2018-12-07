@@ -3,7 +3,7 @@
 	mode = simple #simple,reduce
 	pattern = "h,s" #"y,M,d,h,m,s"
 	limit = 8-18
-	databasepath = /home/grotax/git/gitData.db
+	databasepath = ~/.git/gitprivacy.db
 
 [advice]
 	ignoredHook = false
