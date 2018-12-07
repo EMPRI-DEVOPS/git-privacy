@@ -15,49 +15,9 @@ from . import timestamp
 from . import crypto
 from . import database
 
-PARSER = argparse.ArgumentParser()
 
-ARGUMENTS = {
-    "hexsha": {
-        "argument": "-hexsha",
-        "dest": "hexsha",
-        "help": "-hexsha 7dsfg... , A Commit ID in hexadecimal form",
-        "required": False
-    },
-    "gitdir": {
-        "argument": "-gitdir",
-        "dest": "gitdir",
-        "help": "-gitdir /home/user/git/somerepo , The Path to your Git Repsitory",
-        "required": False
-    },
-    "a_date": {
-        "argument": "-a_date",
-        "dest": "a_date",
-        "help": "The Author date ",
-        "required": False
-    },
-    "c_date": {
-        "argument": "-c_date",
-        "dest": "c_date",
-        "help": "The Commiter date. ",
-        "required": False
-    }
-}
 
-for arg in ARGUMENTS:
-    PARSER.add_argument(ARGUMENTS[arg]["argument"], dest=ARGUMENTS[arg]["dest"], help=ARGUMENTS[arg]["help"],
-                        required=ARGUMENTS[arg]["required"])
 
-# Command Flags
-
-PARSER.add_argument("-getstamp", help="Get a new stamp depending on your chosen method (see config)", action="store_true", required=False)
-PARSER.add_argument("-store", help="If you want to store a commit in the database you have to provide: hexsha, a_date and c_date", action="store_true", required=False)
-PARSER.add_argument("-log", help="Display a git log like history", action="store_true", required=False)
-PARSER.add_argument("-clean", help="Remove commits from your database that no longer exist", action="store_true", required=False)
-PARSER.add_argument("-check", help="Check for potential problems, currently only timezone", action="store_true", required=False)
-PARSER.add_argument("-anonymize", help="Anonymize a existing repository, follow the instructions", action="store_true", required=False)
-
-ARGS = PARSER.parse_args()
 
 def read_config(gitdir):
     """ Reads git config and returns a dictionary"""
@@ -102,13 +62,13 @@ def write_salt(gitdir, salt):
     config_writer.set_value("privacy", "salt", salt)
     config_writer.release()
 
-def do_log(db_connection, repo_path):
+def do_log(args):
     """ creates a git log like output """
+    db_connection = connect_to_database(args.config, args.gitdir)
     colorama.init(autoreset=True)
 
     time_manager = timestamp.TimeStamp()
-
-    repo = git.Repo(repo_path)
+    repo = args.repo
     commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
     print("loaded {} commits, branch: {}".format(len(commit_list), repo.active_branch.name))
 
@@ -128,10 +88,14 @@ def do_log(db_connection, repo_path):
     except sqlite3.OperationalError as db_e:
         print(db_e)
         print("No data found in Database {}".format(db_connection.get_path()))
+    finally:
+        db_connection.close()
 
-def anonymize_repo(repo_path, time_manager, db_connection):
-    """ anonymize repo """
-    repo = git.Repo(repo_path)
+
+def do_anonymize(args):
+    db_connection = connect_to_database(args.config, args.gitdir)
+    repo = args.repo
+    time_manager = args.time_manager
     commit_amount = len(repo.git.rev_list(repo.active_branch.name).splitlines())
     commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
     first_commit = repo.commit(commit_list[::-1][1])
@@ -172,8 +136,7 @@ def anonymize_repo(repo_path, time_manager, db_connection):
 
         datelist = time_manager.datelist(start_date, end_date, commit_amount)
 
-
-        git_repo = git.Git(repo_path)
+        git_repo = git.Git(args.gitdir)
         progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
         counter = 0
         for commit, date in zip(commit_list, datelist):
@@ -196,6 +159,9 @@ def anonymize_repo(repo_path, time_manager, db_connection):
 
     except KeyboardInterrupt:
         print("\n\nERROR: Cancelled by user")
+    finally:
+        db_connection.close()
+
 
 def connect_to_database(config, repo_path):
     try:
@@ -212,66 +178,101 @@ def connect_to_database(config, repo_path):
 
     return db_connection
 
-def main(): # pylint: disable=too-many-branches, too-many-statements
-    """start stuff"""
-    repo_path = None
-    config = None
+
+def do_getstamp(args):
+    print(args.time_manager.get_next_timestamp(args.repo))
+
+def do_store(args):
     try:
-        repo_path = os.path.expanduser(ARGS.gitdir)
-        config = read_config(repo_path)
-    except TypeError:
-        try:
-            repo_path = os.getcwd()
-            config = read_config(repo_path)
-        except git.InvalidGitRepositoryError as git_error:
-            print("Can't load repository: {}".format(git_error), file=sys.stderr)
-            sys.exit(1)
-        except configparser.NoSectionError:
-            print("Not configured", file=sys.stderr)
-            sys.exit(1)
-    time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
-    repo = git.Repo(repo_path)
+        db_connection = connect_to_database(args.config, args.gitdir)
+        db_connection.put(args.hash, args.a_date, args.c_date)
+        db_connection.close()
+    except sqlite3.Error as db_error:
+        print("Cant't write to your database: {}".format(db_error), file=sys.stderr)
+        sys.exit(1)
 
-    if ARGS.getstamp:
-        print(time_manager.get_next_timestamp(repo))
-    elif ARGS.store:
-        try:
-            db_connection = connect_to_database(config, repo_path)
-            db_connection.put(ARGS.hexsha, ARGS.a_date, ARGS.c_date)
-            db_connection.close()
-        except sqlite3.Error as db_error:
-            print("Cant't write to your database: {}".format(db_error), file=sys.stderr)
-            sys.exit(1)
-    elif ARGS.log:
-        db_connection = connect_to_database(config, repo_path)
-        do_log(db_connection, repo_path)
-        db_connection.close()
-    elif ARGS.clean:
-        db_connection = connect_to_database(config, repo_path)
-        commit_list = []
-        for branch in repo.branches:
-            commit_list.append(repo.git.rev_list(branch).splitlines())
-        flat_list = [item for sublist in commit_list for item in sublist]
-        db_connection.clean_database(set(flat_list))
-        db_connection.close()
-    elif ARGS.check:
-        # Check for timzeone change
-        repo = git.Repo(repo_path)
-        commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
-        commit = repo.commit(commit_list[0])
-        last_stamp = time_manager.get_timezone(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))[1]
-        next_stamp = time_manager.get_timezone(time_manager.now())[1]
-        if last_stamp != next_stamp:
-            print("Warning: Your timezone has changed.")
-            # sys.exit(1)
-    elif ARGS.anonymize:
-        db_connection = connect_to_database(config, repo_path)
-        anonymize_repo(repo_path, time_manager, db_connection)
-        db_connection.close()
-    else:
-        PARSER.print_help()
+def do_clean(args):
+    db_connection = connect_to_database(args.config, args.gitdir)
+    repo = args.repo
+    commit_list = []
+    for branch in repo.branches:
+        commit_list.append(repo.git.rev_list(branch).splitlines())
+    flat_list = [item for sublist in commit_list for item in sublist]
+    db_connection.clean_database(set(flat_list))
+    db_connection.close()
 
-    sys.exit()
+def do_check(args):
+    repo = args.repo
+    time_manager = args.time_manager
+    commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
+    commit = repo.commit(commit_list[0])
+    last_stamp = time_manager.get_timezone(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))[1]
+    next_stamp = time_manager.get_timezone(time_manager.now())[1]
+    if last_stamp != next_stamp:
+        print("Warning: Your timezone has changed.")
+
+
+def is_readable_directory(string):
+    gitdir = string
+    if not os.path.isdir(gitdir):
+        raise argparse.ArgumentTypeError("{} is not a directory".format(gitdir))
+    if not os.access(gitdir, os.R_OK):
+        raise argparse.ArgumentTypeError("{} is not readable".format(gitdir))
+    return gitdir
+
+
+def init(args):
+    try:
+        config = read_config(args.gitdir)
+        args.config = config
+    except git.InvalidGitRepositoryError as git_error:
+        print("Can't load repository: {}".format(git_error), file=sys.stderr)
+        sys.exit(1)
+    except configparser.NoSectionError:
+        print("Not configured", file=sys.stderr)
+        sys.exit(1)
+    args.time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
+    args.repo = git.Repo(args.gitdir)
+
+
+def main(): # pylint: disable=too-many-branches, too-many-statements
+    # create the top-level parser
+    parser = argparse.ArgumentParser()
+    parser.set_defaults(func=do_log)
+    parser.add_argument('--gitdir',
+                        help="Path to your Git repsitory",
+                        required=False,
+                        type=is_readable_directory,
+                        default=os.getcwd())
+    subparsers = parser.add_subparsers(title='subcommands')
+
+    # Command 'log'
+    parser_log = subparsers.add_parser('log', help="Display a git log like history")
+    parser_log.set_defaults(func=do_log)
+    # Command 'anonymize'
+    parser_anonymize = subparsers.add_parser('anonymize', help="Anonymize existing repository.")
+    parser_anonymize.set_defaults(func=do_anonymize)
+    # Command 'clean'
+    parser_clean = subparsers.add_parser('clean', help="Remove commits from database that no longer exist")
+    parser_clean.set_defaults(func=do_clean)
+    # Command 'check'
+    parser_check = subparsers.add_parser('check', help="Check for timezone leaks")
+    parser_check.set_defaults(func=do_check)
+    # Command 'getstamp'
+    parser_stamp = subparsers.add_parser('getstamp', help="Get a new stamp depending on your chosen method")
+    parser_stamp.set_defaults(func=do_getstamp)
+    # Command 'store'
+    parser_store = subparsers.add_parser('store', help="Store a commit timestamps in the database.")
+    parser_store.add_argument('hash', help="Commit ID in hexadecimal form")
+    parser_store.add_argument('a_date', help="Author date")
+    parser_store.add_argument('c_date', help="Committer date")
+    parser_store.set_defaults(func=do_store)
+
+    # parse the args and call whatever function was selected
+    args = parser.parse_args()
+    init(args)
+    args.func(args)
+
 
 if __name__ == '__main__':
     main()
