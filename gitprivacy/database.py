@@ -25,10 +25,12 @@ class Database():
                     self.database_cursor.execute('DELETE FROM history WHERE identifier=?', (row[0],))
                     counter += 1
             print("Deleted {} entrys".format(counter))
+            self.database.commit()
         except Exception as db_error:
             raise db_error
-        finally:
-            self.database.commit()
+
+    def close(self):
+        if self.database:
             self.database.close()
 
     def get(self):
@@ -42,8 +44,6 @@ class Database():
             return result_list
         except Exception as db_error:
             raise db_error
-        finally:
-            self.database.close()
 
     def put(self, hexsha, author_date, commit_date):
         """ stores to the sqlitedb """
@@ -55,8 +55,6 @@ class Database():
         try:
             self.database_cursor.execute("CREATE TABLE IF NOT EXISTS history (identifier text, hexsha text, author_date text, commit_date text)")
             self.database_cursor.execute("INSERT INTO history VALUES (?,?,?,?)", (identifier, hexsha, author_date, commit_date))
+            self.database.commit()
         except Exception as db_error:
             raise db_error
-        finally:
-            self.database.commit()
-            self.database.close()

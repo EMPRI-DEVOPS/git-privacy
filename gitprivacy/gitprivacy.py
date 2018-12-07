@@ -238,12 +238,14 @@ def main(): # pylint: disable=too-many-branches, too-many-statements
         try:
             db_connection = connect_to_database(config, repo_path)
             db_connection.put(ARGS.hexsha, ARGS.a_date, ARGS.c_date)
+            db_connection.close()
         except sqlite3.Error as db_error:
             print("Cant't write to your database: {}".format(db_error), file=sys.stderr)
             sys.exit(1)
     elif ARGS.log:
         db_connection = connect_to_database(config, repo_path)
         do_log(db_connection, repo_path)
+        db_connection.close()
     elif ARGS.clean:
         db_connection = connect_to_database(config, repo_path)
         commit_list = []
@@ -251,6 +253,7 @@ def main(): # pylint: disable=too-many-branches, too-many-statements
             commit_list.append(repo.git.rev_list(branch).splitlines())
         flat_list = [item for sublist in commit_list for item in sublist]
         db_connection.clean_database(set(flat_list))
+        db_connection.close()
     elif ARGS.check:
         # Check for timzeone change
         repo = git.Repo(repo_path)
@@ -264,6 +267,7 @@ def main(): # pylint: disable=too-many-branches, too-many-statements
     elif ARGS.anonymize:
         db_connection = connect_to_database(config, repo_path)
         anonymize_repo(repo_path, time_manager, db_connection)
+        db_connection.close()
     else:
         PARSER.print_help()
 
