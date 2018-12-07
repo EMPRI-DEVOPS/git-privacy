@@ -1,0 +1,4 @@
+colorama
+cryptography
+gitpython
+progressbar2
