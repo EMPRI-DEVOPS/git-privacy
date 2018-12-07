@@ -16,9 +16,6 @@ from . import crypto
 from . import database
 
 
-
-
-
 def read_config(gitdir):
     """ Reads git config and returns a dictionary"""
     repo = git.Repo(gitdir)
@@ -52,8 +49,8 @@ def read_config(gitdir):
             config["pattern"] = "s"
     else:
         config["pattern"] = ""
-
     return config
+
 
 def write_salt(gitdir, salt):
     """ Writes salt to config """
@@ -62,11 +59,11 @@ def write_salt(gitdir, salt):
     config_writer.set_value("privacy", "salt", salt)
     config_writer.release()
 
+
 def do_log(args):
     """ creates a git log like output """
     db_connection = connect_to_database(args.config, args.gitdir)
     colorama.init(autoreset=True)
-
     time_manager = timestamp.TimeStamp()
     repo = args.repo
     commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
@@ -100,7 +97,6 @@ def do_anonymize(args):
     commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
     first_commit = repo.commit(commit_list[::-1][1])
     first_stamp = time_manager.simple(time_manager.seconds_to_gitstamp(first_commit.authored_date, first_commit.author_tz_offset))
-
     last_commit = repo.commit(commit_list[1])
     last_stamp = time_manager.simple(time_manager.seconds_to_gitstamp(last_commit.authored_date, last_commit.author_tz_offset))
 
@@ -182,6 +178,7 @@ def connect_to_database(config, repo_path):
 def do_getstamp(args):
     print(args.time_manager.get_next_timestamp(args.repo))
 
+
 def do_store(args):
     try:
         db_connection = connect_to_database(args.config, args.gitdir)
@@ -190,6 +187,7 @@ def do_store(args):
     except sqlite3.Error as db_error:
         print("Cant't write to your database: {}".format(db_error), file=sys.stderr)
         sys.exit(1)
+
 
 def do_clean(args):
     db_connection = connect_to_database(args.config, args.gitdir)
@@ -200,6 +198,7 @@ def do_clean(args):
     flat_list = [item for sublist in commit_list for item in sublist]
     db_connection.clean_database(set(flat_list))
     db_connection.close()
+
 
 def do_check(args):
     repo = args.repo
