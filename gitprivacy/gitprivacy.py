@@ -95,9 +95,9 @@ def do_anonymize(args):
     time_manager = args.time_manager
     commit_amount = len(repo.git.rev_list(repo.active_branch.name).splitlines())
     commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
-    first_commit = repo.commit(commit_list[::-1][1])
+    first_commit = repo.commit(commit_list[-1])
     first_stamp = time_manager.simple(time_manager.seconds_to_gitstamp(first_commit.authored_date, first_commit.author_tz_offset))
-    last_commit = repo.commit(commit_list[1])
+    last_commit = repo.commit(commit_list[0])
     last_stamp = time_manager.simple(time_manager.seconds_to_gitstamp(last_commit.authored_date, last_commit.author_tz_offset))
 
     # get all old dates
