@@ -1,8 +1,9 @@
 [privacy]
-        password = 123456
-        mode = simple #simple,reduce
-        pattern = "h,s" #"y,M,d,h,m,s"
-        limit = 8-18
-        databasepath = /home/grotax/git/gitData.db
+	password = 123456
+	mode = simple #simple,reduce
+	pattern = "h,s" #"y,M,d,h,m,s"
+	limit = 8-18
+	databasepath = /home/grotax/git/gitData.db
+
 [advice]
-        ignoredHook = false
+	ignoredHook = false
