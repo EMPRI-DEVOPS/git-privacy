@@ -90,6 +90,8 @@ def read_config(gitdir):
         except configparser.NoOptionError as missing_option:
             print("no pattern, setting default pattern s", file=sys.stderr)
             config["pattern"] = "s"
+    else:
+        config["pattern"] = ""
 
     return config
 
