@@ -146,7 +146,7 @@ def anonymize_repo(repo_path, time_manager, db_connection):
         commit_obj = repo.commit(commit)
         datelist_original.append([
             time_manager.seconds_to_gitstamp(commit_obj.authored_date, commit_obj.author_tz_offset),
-            time_manager.seconds_to_gitstamp(commit_obj.committed_date, commit_obj.committed_date)
+            time_manager.seconds_to_gitstamp(commit_obj.committed_date, commit_obj.committer_tz_offset)
         ])
 
     try:
