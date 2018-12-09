@@ -4,6 +4,7 @@ git privacy
 """
 import argparse
 import os
+import stat
 import sys
 import base64
 import configparser
@@ -58,6 +59,31 @@ def write_salt(gitdir, salt):
     config_writer = repo.config_writer(config_level='repository')
     config_writer.set_value("privacy", "salt", salt)
     config_writer.release()
+
+
+def do_init(args):
+    copy_hook(args, "post-commit")
+    if args.enable_check:
+        copy_hook(args, "pre-commit")
+
+def copy_hook(args, hook):
+    from pkg_resources import resource_stream, resource_string
+    import shutil
+    hook_fn = os.path.join(args.repo.git_dir, "hooks", hook)
+    try:
+        dst = open(hook_fn, "xb")
+    except FileExistsError as e:
+        print("Git hook already exists at {}".format(hook_fn), file=sys.stderr)
+        print("\nRemove hook and rerun or add the following to the existing "
+              "hook:\n\n{}".format(resource_string('gitprivacy.resources.hooks',
+                                                   hook).decode()))
+        return
+    else:
+        with resource_stream('gitprivacy.resources.hooks', hook) as src, dst:
+            shutil.copyfileobj(src, dst)
+            os.chmod(dst.fileno(), stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP |
+                     stat.S_IROTH | stat.S_IXOTH) # mode 755
+            print("Installed {} hook".format(hook))
 
 
 def do_log(args):
@@ -245,6 +271,12 @@ def main(): # pylint: disable=too-many-branches, too-many-statements
                         default=os.getcwd())
     subparsers = parser.add_subparsers(title='subcommands')
 
+    # Command 'init'
+    parser_init = subparsers.add_parser('init', help="Init git-privacy for this repository")
+    parser_init.add_argument('-c', '--enable-check',
+                             help="enable execution of 'check' before committing",
+                             action='store_true')
+    parser_init.set_defaults(func=do_init)
     # Command 'log'
     parser_log = subparsers.add_parser('log', help="Display a git log like history")
     parser_log.set_defaults(func=do_log)
