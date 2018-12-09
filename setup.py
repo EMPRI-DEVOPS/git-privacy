@@ -18,6 +18,7 @@ setup(
     url='https://git.b-brahmer.de/Grotax/pyGitPrivacy',
     license=LICENSE,
     packages=find_packages(exclude=('tests', 'docs')),
+    include_package_data=True,
     install_requires=[
         'gitpython',
         'colorama',
