@@ -115,7 +115,7 @@ def do_log(args):
         db_connection.close()
 
 
-def do_anonymize(args):
+def do_redate(args):
     db_connection = connect_to_database(args.config, args.gitdir)
     repo = args.repo
     time_manager = args.time_manager
@@ -280,9 +280,9 @@ def main(): # pylint: disable=too-many-branches, too-many-statements
     # Command 'log'
     parser_log = subparsers.add_parser('log', help="Display a git log like history")
     parser_log.set_defaults(func=do_log)
-    # Command 'anonymize'
-    parser_anonymize = subparsers.add_parser('anonymize', help="Anonymize existing repository.")
-    parser_anonymize.set_defaults(func=do_anonymize)
+    # Command 'redate'
+    parser_redate = subparsers.add_parser('redate', help="Redact timestamps of existing commits")
+    parser_redate.set_defaults(func=do_redate)
     # Command 'clean'
     parser_clean = subparsers.add_parser('clean', help="Remove commits from database that no longer exist")
     parser_clean.set_defaults(func=do_clean)

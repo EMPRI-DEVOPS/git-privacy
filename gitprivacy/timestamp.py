@@ -49,7 +49,6 @@ class TimeStamp:
 
     @staticmethod
     def simple(timestamp):
-        """parses timestamp for anonymizing Repo"""
         try:
             date = datetime.datetime.strptime(timestamp, "%d.%m.%Y %H:%M:%S %z")
         except:
