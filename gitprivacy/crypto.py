@@ -1,48 +1,37 @@
 """ crypto for git privacy"""
 import sys
-import base64
-import cryptography.exceptions
-from cryptography.fernet import Fernet
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from base64 import b64encode, b64decode
+import hashlib
+import hmac
+
+from nacl import pwhash, secret, utils
+
 
 class Crypto():
-    """ Handles all encryption related functions """
-    def __init__(self, salt, password):
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=base64.urlsafe_b64decode(salt),
-            iterations=100000,
-            backend=default_backend()
+    def __init__(self, salt: str, password: str) -> None:
+        keys = pwhash.scrypt.kdf(
+            secret.SecretBox.KEY_SIZE * 2,
+            password.encode('utf-8'),
+            b64decode(salt),
+            pwhash.SCRYPT_OPSLIMIT_INTERACTIVE,
+            pwhash.SCRYPT_MEMLIMIT_INTERACTIVE,
         )
-        key = base64.urlsafe_b64encode(kdf.derive(password.encode('utf-8')))
-        self.__fernet = Fernet(key)
-        self.__password = password
+        enckey = keys[:secret.SecretBox.KEY_SIZE]
+        self.__mackey = keys[secret.SecretBox.KEY_SIZE:]
+        self.__box = secret.SecretBox(enckey)
 
-    def encrypt(self, data):
-        """ Encrpyt data with password and salt """
-        token = self.__fernet.encrypt(str(data).encode('utf-8'))
-        return token
+    def encrypt(self, data: str) -> bytes:
+        return self.__box.encrypt(str(data).encode('utf-8'))
 
-    def decrypt(self, data):
-        """ Decrypt data with password and salt
-            To decrypt you need the same password
-            and salt which was used for encryption """
-        try:
-            decrypted_data = self.__fernet.decrypt(data)
-            return decrypted_data.decode('utf-8')
-        except (cryptography.exceptions.InvalidSignature, cryptography.fernet.InvalidToken) as decryption_error:
-            print("Decrypt error {}".format(decryption_error), file=sys.stderr)
+    def decrypt(self, data: bytes) -> str:
+        decrypted_data = self.__box.decrypt(data)
+        return decrypted_data.decode('utf-8')
 
-    def hmac(self, data):
-        """ creates a hmac with password and data """
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=self.__password.encode('utf-8'),
-            iterations=100000,
-            backend=default_backend()
-        )
-        return base64.urlsafe_b64encode(kdf.derive(data.encode('utf-8'))).decode('utf-8')
+    def hmac(self, data: str) -> str:
+        mac = hmac.digest(self.__mackey, data.encode('utf-8'), 'SHA256')
+        return b64encode(mac).decode('utf-8')
+
+
+def generate_salt() -> str:
+    """Generate and return base64url encoded salt."""
+    return b64encode(utils.random(pwhash.scrypt.SALTBYTES)).decode('utf-8')

@@ -6,7 +6,6 @@ import argparse
 import os
 import stat
 import sys
-import base64
 import configparser
 import sqlite3
 import git
@@ -29,8 +28,8 @@ def read_config(gitdir):
         except configparser.NoOptionError as missing_option:
             if missing_option.option == "salt":
                 print("No Salt found generating a new salt....", file=sys.stderr)
-                config["salt"] = base64.urlsafe_b64encode(os.urandom(16))
-                write_salt(gitdir, base64.urlsafe_b64encode(config["salt"]))
+                config["salt"] = crypto.generate_salt()
+                write_salt(gitdir, config["salt"])
             elif missing_option.option == "mode":
                 print("No mode defined using default", file=sys.stderr)
                 config["mode"] = "simple"
