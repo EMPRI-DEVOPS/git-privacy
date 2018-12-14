@@ -15,7 +15,7 @@ class Database():
         return self.databasepath
 
     def clean_database(self, commit_id_list):
-        """ Removes entrys that do no longer exist in the repository from the database """
+        """ Removes entries that do no longer exist in the repository from the database """
         commit_id_list = map(self.crypto.hmac, commit_id_list)
         counter = 0
         try:
@@ -24,7 +24,7 @@ class Database():
                 if row[0] not in commit_id_list:
                     self.database_cursor.execute('DELETE FROM history WHERE identifier=?', (row[0],))
                     counter += 1
-            print("Deleted {} entrys".format(counter))
+            print("Deleted {} entries".format(counter))
             self.database.commit()
         except Exception as db_error:
             raise db_error
