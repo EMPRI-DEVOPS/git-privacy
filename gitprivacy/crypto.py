@@ -12,7 +12,7 @@ class Crypto():
         keys = pwhash.scrypt.kdf(
             secret.SecretBox.KEY_SIZE * 2,
             password.encode('utf-8'),
-            b64decode(salt),
+            b64decode(salt.encode('utf-8')),
             pwhash.SCRYPT_OPSLIMIT_INTERACTIVE,
             pwhash.SCRYPT_MEMLIMIT_INTERACTIVE,
         )
