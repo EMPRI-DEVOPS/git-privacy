@@ -16,12 +16,12 @@ class Database():
 
     def clean_database(self, commit_id_list):
         """ Removes entries that do no longer exist in the repository from the database """
-        commit_id_list = map(self.crypto.hmac, commit_id_list)
+        macs = [self.crypto.hmac(c) for c in commit_id_list]
         counter = 0
         try:
             all_data = self.database_cursor.execute("SELECT * FROM history")
             for row in all_data.fetchall():
-                if row[0] not in commit_id_list:
+                if row[0] not in macs:
                     self.database_cursor.execute('DELETE FROM history WHERE identifier=?', (row[0],))
                     counter += 1
             print("Deleted {} entries".format(counter))
