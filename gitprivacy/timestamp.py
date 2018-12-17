@@ -8,9 +8,7 @@ import calendar
 
 class TimeStamp:
     """ Class for dealing with git timestamps"""
-    def __init__(self, pattern="s", limit=False, mode="simple"):
-        super(TimeStamp, self).__init__()
-
+    def __init__(self, pattern="s", limit=False, mode="reduce"):
         try:
             foo_bar = re.search('([0-9]+)-([0-9]+)', str(limit))
             self.limit = [int(foo_bar.group(1)), int(foo_bar.group(2))]
@@ -151,11 +149,6 @@ class TimeStamp:
         if self.mode == "reduce":
             stamp = self.reduce(self.now())
             return stamp
-        if self.mode == "simple":
-            commit_id = repo.git.rev_list(repo.active_branch.name).splitlines()[1]
-            commit = repo.commit(commit_id)
-            last_timestamp = self.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)
-            return self.plus_hour(last_timestamp, 1)
         if self.mode == "average":
             commits = repo.git.rev_list(repo.active_branch.name).splitlines()
             list_of_stamps = []

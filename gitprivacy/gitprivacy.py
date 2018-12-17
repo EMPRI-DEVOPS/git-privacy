@@ -32,7 +32,7 @@ def read_config(gitdir):
                 write_salt(gitdir, config["salt"])
             elif missing_option.option == "mode":
                 print("No mode defined using default", file=sys.stderr)
-                config["mode"] = "simple"
+                config["mode"] = "reduce"
             elif missing_option.option == "password":
                 print("error no password", file=sys.stderr)
                 raise missing_option
