@@ -219,9 +219,8 @@ def do_clean(args):
     repo = args.repo
     commit_list = []
     for branch in repo.branches:
-        commit_list.append(repo.git.rev_list(branch).splitlines())
-    flat_list = [item for sublist in commit_list for item in sublist]
-    db_connection.clean_database(set(flat_list))
+        commit_list.extend(repo.git.rev_list(branch).splitlines())
+    db_connection.clean_database(set(commit_list))
     db_connection.close()
 
 
