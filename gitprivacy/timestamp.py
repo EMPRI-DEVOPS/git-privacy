@@ -46,7 +46,7 @@ class TimeStamp:
         return [timestamp, timezone]
 
     @staticmethod
-    def simple(timestamp):
+    def format(timestamp) -> str:
         try:
             date = datetime.datetime.strptime(timestamp, "%d.%m.%Y %H:%M:%S %z")
         except:

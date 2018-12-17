@@ -121,9 +121,9 @@ def do_redate(args):
     commit_amount = len(repo.git.rev_list(repo.active_branch.name).splitlines())
     commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
     first_commit = repo.commit(commit_list[-1])
-    first_stamp = time_manager.simple(time_manager.seconds_to_gitstamp(first_commit.authored_date, first_commit.author_tz_offset))
+    first_stamp = time_manager.format(time_manager.seconds_to_gitstamp(first_commit.authored_date, first_commit.author_tz_offset))
     last_commit = repo.commit(commit_list[0])
-    last_stamp = time_manager.simple(time_manager.seconds_to_gitstamp(last_commit.authored_date, last_commit.author_tz_offset))
+    last_stamp = time_manager.format(time_manager.seconds_to_gitstamp(last_commit.authored_date, last_commit.author_tz_offset))
 
     # get all old dates
     datelist_original = []
@@ -139,7 +139,7 @@ def do_redate(args):
         if start_date == "":
             start_date = first_stamp
         try:
-            start_date = time_manager.simple(start_date)
+            start_date = time_manager.format(start_date)
         except ValueError:
             print("ERROR: Invalid Date")
         print("Your start date will be: {}".format(start_date))
@@ -148,7 +148,7 @@ def do_redate(args):
         if end_date == "":
             end_date = last_stamp
         try:
-            end_date = time_manager.simple(end_date)
+            end_date = time_manager.format(end_date)
         except ValueError:
             print("ERROR: Invalid Date")
         print("Your end date will be: {}".format(end_date))
