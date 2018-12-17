@@ -33,5 +33,5 @@ class Crypto():
 
 
 def generate_salt() -> str:
-    """Generate and return base64url encoded salt."""
+    """Generate and return base64-encoded salt."""
     return b64encode(utils.random(pwhash.scrypt.SALTBYTES)).decode('utf-8')
