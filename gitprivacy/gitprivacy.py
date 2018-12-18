@@ -94,18 +94,19 @@ def do_log(args):
     commit_list = list(repo.iter_commits())
 
     try:
-        magic_list = db_connection.get()
+        db_entries = db_connection.get()
         for commit_id in commit_list:
             commit = repo.commit(commit_id)
             print(colorama.Fore.YELLOW +"commit {}".format(commit.hexsha))
-            print("Author: {}".format(commit.author))
-            if commit.hexsha in magic_list:
-                real_date = magic_list[commit.hexsha]
-                print(colorama.Fore.RED + "Date: {}".format(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)))
-                print(colorama.Fore.GREEN + "RealDate: {}".format(real_date))
+            print(f"Author:\t\t{commit.author.name} <{commit.author.email}>")
+            if commit.hexsha in db_entries:
+                real_date = db_entries[commit.hexsha]
+                print(colorama.Fore.RED + "Date:\t\t{}".format(
+                    time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)))
+                print(colorama.Fore.GREEN + "RealDate:\t{}".format(real_date))
             else:
-                print("Date: {}".format(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)))
-            print("\t {} ".format(commit.message))
+                print("Date:\t{}".format(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)))
+            print(os.linesep + "    {} ".format(commit.message))
     except sqlite3.OperationalError as db_e:
         print(db_e)
         print("No data found in Database {}".format(db_connection.get_path()))
