@@ -6,6 +6,11 @@ import itertools
 import random
 import calendar
 
+
+DATE_FMT = "%a %b %d %H:%M:%S %Y %z"
+DATE_FMT_ALT = "%d.%m.%Y %H:%M:%S %z"
+
+
 class TimeStamp:
     """ Class for dealing with git timestamps"""
     def __init__(self, pattern="s", limit=None, mode="reduce"):
@@ -32,41 +37,41 @@ class TimeStamp:
         """ time in utc + offset"""
         utc_offset_sec = time.altzone if time.localtime().tm_isdst else time.timezone
         utc_offset = timedelta(seconds=-utc_offset_sec)
-        return  datetime.utcnow().replace(tzinfo=timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
+        return  datetime.utcnow().replace(tzinfo=timezone(offset=utc_offset)).strftime(DATE_FMT)
 
     @staticmethod
     def now():
         """local time + offset"""
         utc_offset_sec = time.altzone if time.localtime().tm_isdst else time.timezone
         utc_offset = timedelta(seconds=-utc_offset_sec)
-        return datetime.now().replace(tzinfo=timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
+        return datetime.now().replace(tzinfo=timezone(offset=utc_offset)).strftime(DATE_FMT)
 
     @staticmethod
     def get_timezone(timestamp):
         """returns list of timestamp and corresponding timezone"""
-        timezone = datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z").strftime("%z")
+        timezone = datetime.strptime(timestamp, DATE_FMT).strftime("%z")
         return [timestamp, timezone]
 
     @staticmethod
     def format(timestamp) -> str:
         try:
-            date = datetime.strptime(timestamp, "%d.%m.%Y %H:%M:%S %z")
+            date = datetime.strptime(timestamp, DATE_FMT_ALT)
         except:
-            date = datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
+            date = datetime.strptime(timestamp, DATE_FMT)
 
-        return date.strftime("%d.%m.%Y %H:%M:%S %z")
+        return date.strftime(DATE_FMT_ALT)
 
     @staticmethod
     def to_string(timestamp, git_like=False):
         """converts timestamp to string"""
         if git_like:
-            return timestamp.strftime("%a %b %d %H:%M:%S %Y %z")
-        return timestamp.strftime("%d.%m.%Y %H:%M:%S %z")
+            return timestamp.strftime(DATE_FMT)
+        return timestamp.strftime(DATE_FMT_ALT)
 
     def datelist(self, start_date, end_date, amount):
         """ returns datelist """
-        start = datetime.strptime(start_date, "%d.%m.%Y %H:%M:%S %z")
-        end = datetime.strptime(end_date, "%d.%m.%Y %H:%M:%S %z")
+        start = datetime.strptime(start_date, DATE_FMT_ALT)
+        end = datetime.strptime(end_date, DATE_FMT_ALT)
         diff = (end - start) / (amount - 1)
         datelist = []
         current_date = start
@@ -111,22 +116,22 @@ class TimeStamp:
         """Some custom time"""
         utc_offset = timedelta(hours=timezone)
         time_stamp = datetime(year, month, day, hour, minute, second).replace(
-            tzinfo=timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
+            tzinfo=timezone(offset=utc_offset)).strftime(DATE_FMT)
         return time_stamp
 
     def plus_hour(self, timestamp, hours):
         """adds hour to timestamp and returns"""
-        timestamp = datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
+        timestamp = datetime.strptime(timestamp, DATE_FMT)
         timestamp += timedelta(hours=hours)
-        return timestamp.strftime("%a %b %d %H:%M:%S %Y %z")
+        return timestamp.strftime(DATE_FMT)
 
     @staticmethod
     def average(stamp_list):
         """adds hour to timestamp and returns"""
         list_of_dates = []
         for first, second in stamp_list:
-            stamp_first = datetime.strptime(first, "%a %b %d %H:%M:%S %Y %z")
-            stamp_second = datetime.strptime(second, "%a %b %d %H:%M:%S %Y %z")
+            stamp_first = datetime.strptime(first, DATE_FMT)
+            stamp_second = datetime.strptime(second, DATE_FMT)
             list_of_dates.append(stamp_first)
             list_of_dates.append(stamp_second)
         timedeltas = [list_of_dates[i-1]-list_of_dates[i] for i in range(1, len(list_of_dates))]
@@ -136,7 +141,7 @@ class TimeStamp:
     @staticmethod
     def seconds_to_gitstamp(seconds, time_zone):
         """ time in utc + offset"""
-        return datetime.fromtimestamp(seconds, timezone(timedelta(seconds=-time_zone))).strftime("%a %b %d %H:%M:%S %Y %z")
+        return datetime.fromtimestamp(seconds, timezone(timedelta(seconds=-time_zone))).strftime(DATE_FMT)
 
     def get_next_timestamp(self, repo):
         """ returns the next timestamp"""
