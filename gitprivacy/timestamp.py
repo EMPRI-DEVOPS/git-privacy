@@ -1,6 +1,6 @@
 """defines git timestamps"""
 import time
-import datetime
+from datetime import datetime, timedelta, timezone
 import re
 import itertools
 import random
@@ -8,15 +8,17 @@ import calendar
 
 class TimeStamp:
     """ Class for dealing with git timestamps"""
-    def __init__(self, pattern="s", limit=False, mode="reduce"):
-        try:
-            foo_bar = re.search('([0-9]+)-([0-9]+)', str(limit))
-            self.limit = [int(foo_bar.group(1)), int(foo_bar.group(2))]
-        except AttributeError:
-            self.limit = False
-
+    def __init__(self, pattern="s", limit=None, mode="reduce"):
         self.mode = mode
         self.pattern = pattern
+        self.limit = limit
+        if limit:
+            try:
+                match = re.search('([0-9]+)-([0-9]+)', str(limit))
+                self.limit = (int(match.group(1)), int(match.group(2)))
+            except AttributeError as e:
+                raise ValueError("Unexpected syntax for limit.")
+
 
     @staticmethod
     def pairwise(iterable):
@@ -29,28 +31,28 @@ class TimeStamp:
     def utc_now():
         """ time in utc + offset"""
         utc_offset_sec = time.altzone if time.localtime().tm_isdst else time.timezone
-        utc_offset = datetime.timedelta(seconds=-utc_offset_sec)
-        return  datetime.datetime.utcnow().replace(tzinfo=datetime.timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
+        utc_offset = timedelta(seconds=-utc_offset_sec)
+        return  datetime.utcnow().replace(tzinfo=timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
 
     @staticmethod
     def now():
         """local time + offset"""
         utc_offset_sec = time.altzone if time.localtime().tm_isdst else time.timezone
-        utc_offset = datetime.timedelta(seconds=-utc_offset_sec)
-        return datetime.datetime.now().replace(tzinfo=datetime.timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
+        utc_offset = timedelta(seconds=-utc_offset_sec)
+        return datetime.now().replace(tzinfo=timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
 
     @staticmethod
     def get_timezone(timestamp):
         """returns list of timestamp and corresponding timezone"""
-        timezone = datetime.datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z").strftime("%z")
+        timezone = datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z").strftime("%z")
         return [timestamp, timezone]
 
     @staticmethod
     def format(timestamp) -> str:
         try:
-            date = datetime.datetime.strptime(timestamp, "%d.%m.%Y %H:%M:%S %z")
+            date = datetime.strptime(timestamp, "%d.%m.%Y %H:%M:%S %z")
         except:
-            date = datetime.datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
+            date = datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
 
         return date.strftime("%d.%m.%Y %H:%M:%S %z")
 
@@ -63,8 +65,8 @@ class TimeStamp:
 
     def datelist(self, start_date, end_date, amount):
         """ returns datelist """
-        start = datetime.datetime.strptime(start_date, "%d.%m.%Y %H:%M:%S %z")
-        end = datetime.datetime.strptime(end_date, "%d.%m.%Y %H:%M:%S %z")
+        start = datetime.strptime(start_date, "%d.%m.%Y %H:%M:%S %z")
+        end = datetime.strptime(end_date, "%d.%m.%Y %H:%M:%S %z")
         diff = (end - start) / (amount - 1)
         datelist = []
         current_date = start
@@ -75,55 +77,47 @@ class TimeStamp:
         datelist.append(self.to_string(end))
         return datelist
 
-    def reduce(self, input_timestamp):
-        """replaces the values specifed by the pattern
-            y = Year
-            M = Month
-            d = day
-            h = hour
-            m = minute
-            s = second"""
-        try:
-            timestamp = datetime.datetime.strptime(input_timestamp, "%a %b %d %H:%M:%S %Y %z")
-        except TypeError:
-            timestamp = input_timestamp
+    def reduce(self, timestamp: datetime) -> datetime:
+        """Reduces timestamp precision for the parts specifed by the pattern using
+        M: month, d: day, h: hour, m: minute, s: second.
 
-        if "y" in self.pattern:
-            # MIN-year: 1970 and MAX-year: 2099
-            timestamp = timestamp.replace(year=random.randrange(1970, 2099, 1))
+        Example: A pattern of 's' sets the seconds to 0."""
+
         if "M" in self.pattern:
-            timestamp = timestamp.replace(month=random.randrange(1, 12, 1))
+            timestamp = timestamp.replace(month=1)
         if "d" in self.pattern:
-            max_day = calendar.monthrange(timestamp.year, timestamp.month)[1]
-            timestamp = timestamp.replace(day=random.randrange(1, max_day, 1))
+            timestamp = timestamp.replace(day=1)
         if "h" in self.pattern:
-            if self.limit is False:
-                timestamp = timestamp.replace(hour=random.randrange(1, 24, 1))
-            else:
-                timestamp = timestamp.replace(hour=random.randrange(self.limit[0], self.limit[1], 1))
+            timestamp = timestamp.replace(hour=0)
         if "m" in self.pattern:
-            timestamp = timestamp.replace(minute=random.randrange(1, 60, 1))
+            timestamp = timestamp.replace(minute=0)
         if "s" in self.pattern:
-            timestamp = timestamp.replace(second=random.randrange(1, 60, 1))
+            timestamp = timestamp.replace(second=0)
+        timestamp = self.enforce_limit(timestamp)
+        return timestamp
+
+    def enforce_limit(self, timestamp: datetime) -> datetime:
+        if not self.limit:
+            return timestamp
+        start, end = self.limit
+        if timestamp.hour < start:
+            timestamp = timestamp.replace(hour=start, minute=0, second=0)
+        if timestamp.hour >= end:
+            timestamp = timestamp.replace(hour=end, minute=0, second=0)
         return timestamp
 
     @staticmethod
     def custom(year, month, day, hour, minute, second, timezone): # pylint: disable=too-many-arguments
         """Some custom time"""
-        utc_offset = datetime.timedelta(hours=timezone)
-        time_stamp = datetime.datetime(year,
-                                       month,
-                                       day,
-                                       hour,
-                                       minute,
-                                       second).replace(
-                                           tzinfo=datetime.timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
+        utc_offset = timedelta(hours=timezone)
+        time_stamp = datetime(year, month, day, hour, minute, second).replace(
+            tzinfo=timezone(offset=utc_offset)).strftime("%a %b %d %H:%M:%S %Y %z")
         return time_stamp
 
     def plus_hour(self, timestamp, hours):
         """adds hour to timestamp and returns"""
-        timestamp = datetime.datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
-        timestamp += datetime.timedelta(hours=hours)
+        timestamp = datetime.strptime(timestamp, "%a %b %d %H:%M:%S %Y %z")
+        timestamp += timedelta(hours=hours)
         return timestamp.strftime("%a %b %d %H:%M:%S %Y %z")
 
     @staticmethod
@@ -131,18 +125,18 @@ class TimeStamp:
         """adds hour to timestamp and returns"""
         list_of_dates = []
         for first, second in stamp_list:
-            stamp_first = datetime.datetime.strptime(first, "%a %b %d %H:%M:%S %Y %z")
-            stamp_second = datetime.datetime.strptime(second, "%a %b %d %H:%M:%S %Y %z")
+            stamp_first = datetime.strptime(first, "%a %b %d %H:%M:%S %Y %z")
+            stamp_second = datetime.strptime(second, "%a %b %d %H:%M:%S %Y %z")
             list_of_dates.append(stamp_first)
             list_of_dates.append(stamp_second)
         timedeltas = [list_of_dates[i-1]-list_of_dates[i] for i in range(1, len(list_of_dates))]
-        average_timedelta = sum(timedeltas, datetime.timedelta(0)) / len(timedeltas)
+        average_timedelta = sum(timedeltas, timedelta(0)) / len(timedeltas)
         return average_timedelta
 
     @staticmethod
     def seconds_to_gitstamp(seconds, time_zone):
         """ time in utc + offset"""
-        return datetime.datetime.fromtimestamp(seconds, datetime.timezone(datetime.timedelta(seconds=-time_zone))).strftime("%a %b %d %H:%M:%S %Y %z")
+        return datetime.fromtimestamp(seconds, timezone(timedelta(seconds=-time_zone))).strftime("%a %b %d %H:%M:%S %Y %z")
 
     def get_next_timestamp(self, repo):
         """ returns the next timestamp"""
