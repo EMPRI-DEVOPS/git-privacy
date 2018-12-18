@@ -35,15 +35,11 @@ class Database():
 
     def get(self):
         """ reads from the sqlitedb """
-        try:
-            result_list = {}
-            all_data = self.database_cursor.execute("SELECT * FROM history")
-            for row in all_data.fetchall():
-                result_list[self.crypto.decrypt(row[1])] = self.crypto.decrypt(row[2])
-
-            return result_list
-        except Exception as db_error:
-            raise db_error
+        entries = {}
+        all_data = self.database_cursor.execute("SELECT * FROM history")
+        for _, sha, a_date, c_date in all_data.fetchall():
+            entries[self.crypto.decrypt(sha)] = self.crypto.decrypt(a_date)
+        return entries
 
     def put(self, hexsha, author_date, commit_date):
         """ stores to the sqlitedb """

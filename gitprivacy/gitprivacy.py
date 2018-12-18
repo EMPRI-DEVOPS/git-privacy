@@ -91,8 +91,7 @@ def do_log(args):
     colorama.init(autoreset=True)
     time_manager = timestamp.TimeStamp()
     repo = args.repo
-    commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
-    print("loaded {} commits, branch: {}".format(len(commit_list), repo.active_branch.name))
+    commit_list = list(repo.iter_commits())
 
     try:
         magic_list = db_connection.get()
@@ -118,21 +117,20 @@ def do_redate(args):
     db_connection = connect_to_database(args.config, args.gitdir)
     repo = args.repo
     time_manager = args.time_manager
-    commit_amount = len(repo.git.rev_list(repo.active_branch.name).splitlines())
-    commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
-    first_commit = repo.commit(commit_list[-1])
+    commit_list = list(repo.iter_commits())
+    commit_amount = len(commit_list)
+    first_commit = commit_list[-1]
     first_stamp = time_manager.format(time_manager.seconds_to_gitstamp(first_commit.authored_date, first_commit.author_tz_offset))
-    last_commit = repo.commit(commit_list[0])
+    last_commit = commit_list[0]
     last_stamp = time_manager.format(time_manager.seconds_to_gitstamp(last_commit.authored_date, last_commit.author_tz_offset))
 
     # get all old dates
-    datelist_original = []
-    for commit in commit_list:
-        commit_obj = repo.commit(commit)
-        datelist_original.append((
-            time_manager.seconds_to_gitstamp(commit_obj.authored_date, commit_obj.author_tz_offset),
-            time_manager.seconds_to_gitstamp(commit_obj.committed_date, commit_obj.committer_tz_offset)
-        ))
+    datelist_original = [
+        (
+            time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset),
+            time_manager.seconds_to_gitstamp(commit.committed_date, commit.committer_tz_offset)
+        ) for commit in commit_list
+    ]
 
     try:
         start_date = input("Enter the start date [Default: {}]:".format(first_stamp))
@@ -157,24 +155,22 @@ def do_redate(args):
 
         datelist = time_manager.datelist(start_date, end_date, commit_amount)
 
-        git_repo = git.Git(args.gitdir)
         progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
         counter = 0
         for commit, date in zip(commit_list, datelist):
             sub_command = "if [ $GIT_COMMIT = {} ] \n then \n\t export GIT_AUTHOR_DATE=\"{}\"\n \t export GIT_COMMITTER_DATE=\"{}\"\n fi".format(commit, date, date)
             my_command = ["git", "filter-branch", "-f", "--env-filter", sub_command]
-            git_repo.execute(command=my_command)
+            repo.git.execute(command=my_command)
             counter += 1
             progress.update(counter)
         progress.finish()
 
         # update the DB
         print("Updating database ...")
-        commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
         progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
         counter = 0
         for commit, (a_date, c_date) in zip(commit_list, datelist_original):
-            db_connection.put(commit, a_date, c_date)
+            db_connection.put(commit.hexsha, a_date, c_date)
             counter += 1
             progress.update(counter)
 
@@ -219,16 +215,16 @@ def do_clean(args):
     repo = args.repo
     commit_list = []
     for branch in repo.branches:
-        commit_list.extend(repo.git.rev_list(branch).splitlines())
-    db_connection.clean_database(set(commit_list))
+        commit_list.extend(repo.iter_commits(branch))
+    db_connection.clean_database([c.hexsha for c in set(commit_list)])
     db_connection.close()
 
 
 def do_check(args):
     repo = args.repo
     time_manager = args.time_manager
-    commit_list = repo.git.rev_list(repo.active_branch.name).splitlines()
-    commit = repo.commit(commit_list[0])
+    commit_list = list(repo.iter_commits())
+    commit = commit_list[0]
     last_stamp = time_manager.get_timezone(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))[1]
     next_stamp = time_manager.get_timezone(time_manager.now())[1]
     if last_stamp != next_stamp:
