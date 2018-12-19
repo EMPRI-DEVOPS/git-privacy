@@ -105,20 +105,6 @@ class TimeStamp:
         return timestamp
 
     @staticmethod
-    def custom(year, month, day, hour, minute, second, timezone): # pylint: disable=too-many-arguments
-        """Some custom time"""
-        utc_offset = timedelta(hours=timezone)
-        time_stamp = datetime(year, month, day, hour, minute, second).replace(
-            tzinfo=timezone(offset=utc_offset)).strftime(DATE_FMT)
-        return time_stamp
-
-    def plus_hour(self, timestamp, hours):
-        """adds hour to timestamp and returns"""
-        timestamp = datetime.strptime(timestamp, DATE_FMT)
-        timestamp += timedelta(hours=hours)
-        return timestamp.strftime(DATE_FMT)
-
-    @staticmethod
     def average(stamps: List[datetime]) -> timedelta:
         timedeltas = [max(stamps[i-1:i+1]) - min(stamps[i-1:i+1]) for i in range(1, len(stamps))]
         average_timedelta = sum(timedeltas, timedelta(0)) / len(timedeltas)
