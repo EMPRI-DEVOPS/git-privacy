@@ -3,6 +3,7 @@
 git privacy
 """
 import argparse
+from datetime import datetime, timezone
 import os
 import stat
 import sys
@@ -222,13 +223,13 @@ def do_clean(args):
 
 
 def do_check(args):
-    repo = args.repo
+    """Check whether the timezone has changed since the last commit."""
     time_manager = args.time_manager
-    commit_list = list(repo.iter_commits())
-    commit = commit_list[0]
-    last_stamp = time_manager.get_timezone(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset))[1]
-    next_stamp = time_manager.get_timezone(time_manager.now())[1]
-    if last_stamp != next_stamp:
+    last_commit = next(args.repo.iter_commits())
+    current_tz = datetime.now(timezone.utc).astimezone().tzinfo
+    last_tz = last_commit.authored_datetime.tzinfo
+    dummy_date = datetime.now()
+    if last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date):
         print("Warning: Your timezone has changed.")
 
 

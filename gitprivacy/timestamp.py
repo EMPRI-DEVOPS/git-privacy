@@ -40,12 +40,6 @@ class TimeStamp:
         return datetime.now().replace(tzinfo=timezone(offset=utc_offset)).strftime(DATE_FMT)
 
     @staticmethod
-    def get_timezone(timestamp):
-        """returns list of timestamp and corresponding timezone"""
-        timezone = datetime.strptime(timestamp, DATE_FMT).strftime("%z")
-        return [timestamp, timezone]
-
-    @staticmethod
     def format(timestamp) -> str:
         try:
             date = datetime.strptime(timestamp, DATE_FMT_ALT)
