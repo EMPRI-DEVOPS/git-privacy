@@ -112,7 +112,7 @@ class TimeStamp:
     def get_next_timestamp(self, repo) -> datetime:
         """ returns the next timestamp"""
         if self.mode == "reduce":
-            stamp = self.reduce(self.now())
+            stamp = self.reduce(datetime.now())
             return stamp
         if self.mode == "average":
             commits = list(repo.iter_commits())

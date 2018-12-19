@@ -199,7 +199,9 @@ def connect_to_database(config, repo_path):
 
 
 def do_getstamp(args):
-    print(args.time_manager.get_next_timestamp(args.repo))
+    stamp = args.time_manager.get_next_timestamp(args.repo)
+    stamp = stamp.replace(microsecond=0)
+    print(stamp.isoformat())
 
 
 def do_store(args):
