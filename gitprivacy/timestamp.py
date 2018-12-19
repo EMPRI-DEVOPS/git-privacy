@@ -5,6 +5,7 @@ import re
 import itertools
 import random
 import calendar
+from typing import List, Tuple
 
 
 DATE_FMT = "%a %b %d %H:%M:%S %Y %z"
@@ -23,14 +24,6 @@ class TimeStamp:
                 self.limit = (int(match.group(1)), int(match.group(2)))
             except AttributeError as e:
                 raise ValueError("Unexpected syntax for limit.")
-
-
-    @staticmethod
-    def pairwise(iterable):
-        "s -> (s0,s1), (s1,s2), (s2, s3), ..."
-        first, second = itertools.tee(iterable)
-        next(second, None)
-        return zip(first, second)
 
     @staticmethod
     def utc_now():
@@ -126,37 +119,26 @@ class TimeStamp:
         return timestamp.strftime(DATE_FMT)
 
     @staticmethod
-    def average(stamp_list):
-        """adds hour to timestamp and returns"""
-        list_of_dates = []
-        for first, second in stamp_list:
-            stamp_first = datetime.strptime(first, DATE_FMT)
-            stamp_second = datetime.strptime(second, DATE_FMT)
-            list_of_dates.append(stamp_first)
-            list_of_dates.append(stamp_second)
-        timedeltas = [list_of_dates[i-1]-list_of_dates[i] for i in range(1, len(list_of_dates))]
+    def average(stamps: List[datetime]) -> timedelta:
+        timedeltas = [max(stamps[i-1:i+1]) - min(stamps[i-1:i+1]) for i in range(1, len(stamps))]
         average_timedelta = sum(timedeltas, timedelta(0)) / len(timedeltas)
         return average_timedelta
 
     @staticmethod
-    def seconds_to_gitstamp(seconds, time_zone):
+    def seconds_to_gitstamp(seconds: int, time_zone: int) -> str:
         """ time in utc + offset"""
         return datetime.fromtimestamp(seconds, timezone(timedelta(seconds=-time_zone))).strftime(DATE_FMT)
 
-    def get_next_timestamp(self, repo):
+    def get_next_timestamp(self, repo) -> datetime:
         """ returns the next timestamp"""
         if self.mode == "reduce":
             stamp = self.reduce(self.now())
             return stamp
         if self.mode == "average":
-            commits = repo.git.rev_list(repo.active_branch.name).splitlines()
-            list_of_stamps = []
-            for a, b in self.pairwise(commits):
-                list_of_stamps.append([self.seconds_to_gitstamp(repo.commit(a).authored_date, repo.commit(a).author_tz_offset),
-                                       self.seconds_to_gitstamp(repo.commit(b).authored_date, repo.commit(b).author_tz_offset)])
-            last_commit_id = commits[1]
-            last_commit = commit = repo.commit(last_commit_id)
-            last_timestamp = self.seconds_to_gitstamp(last_commit.authored_date, last_commit.author_tz_offset)
+            commits = list(repo.iter_commits())
+            list_of_stamps = [c.authored_datetime for c in commits]
+            last_commit = commits[0]
+            last_timestamp = last_commit.authored_datetime
             next_stamp = last_timestamp + self.average(list_of_stamps)
             return next_stamp
-        return None
+        raise ValueError(f"Unknown mode {self.mode}")
