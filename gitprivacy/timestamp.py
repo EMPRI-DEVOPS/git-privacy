@@ -2,9 +2,6 @@
 import time
 from datetime import datetime, timedelta, timezone
 import re
-import itertools
-import random
-import calendar
 from typing import List, Tuple
 
 
@@ -26,26 +23,11 @@ class TimeStamp:
                 raise ValueError("Unexpected syntax for limit.")
 
     @staticmethod
-    def utc_now():
-        """ time in utc + offset"""
-        utc_offset_sec = time.altzone if time.localtime().tm_isdst else time.timezone
-        utc_offset = timedelta(seconds=-utc_offset_sec)
-        return  datetime.utcnow().replace(tzinfo=timezone(offset=utc_offset)).strftime(DATE_FMT)
-
-    @staticmethod
-    def now():
-        """local time + offset"""
-        utc_offset_sec = time.altzone if time.localtime().tm_isdst else time.timezone
-        utc_offset = timedelta(seconds=-utc_offset_sec)
-        return datetime.now().replace(tzinfo=timezone(offset=utc_offset)).strftime(DATE_FMT)
-
-    @staticmethod
     def format(timestamp) -> str:
         try:
             date = datetime.strptime(timestamp, DATE_FMT_ALT)
         except:
             date = datetime.strptime(timestamp, DATE_FMT)
-
         return date.strftime(DATE_FMT_ALT)
 
     @staticmethod
