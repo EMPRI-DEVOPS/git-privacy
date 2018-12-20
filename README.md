@@ -11,7 +11,7 @@ might need them.
 
 + `git clone https://github.com/cburkert/pyGitPrivacy.git`
 + `cd pyGitPrivacy`
-+ `pip install .` (You might be superuser to do that if you are not in a virtual environment)
++ `pip install .` (You might need to be superuser if you are not in a virtual environment)
 
 
 ## Getting Started
