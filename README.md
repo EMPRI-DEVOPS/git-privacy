@@ -3,17 +3,15 @@
 Git-privacy redacts author and committer dates to keep your coding hours more
 private. You can choose the level of redaction: only remove minutes and seconds
 from your dates or even hide day or month.
-
 The original dates are encrypted and stored in the commit message in case you
 might need them.
 
 
 ## Installation
 
-+ clone the repository and change directory
-+ `pip install .`
-
-Copy `post-commit` to `yourRepo/.git/hooks/` (make sure that it is executable)
++ `git clone https://github.com/cburkert/pyGitPrivacy.git`
++ `cd pyGitPrivacy`
++ `pip install .` (You might be superuser to do that if you are not in a virtual environment)
 
 
 ## Getting Started
@@ -71,7 +69,6 @@ diverging commit histories.
 ## Optional: Timezone Change Warnings
 
 Additionally you may install a pre-commit hook which currently checks if your timezone differs from the last commit.
-
 To do so simply execute:
 
     git-privacy init --enable-check
