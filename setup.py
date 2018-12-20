@@ -1,4 +1,3 @@
-""" setup file """
 from setuptools import setup, find_packages
 
 
@@ -10,12 +9,12 @@ with open('LICENSE') as f:
 
 setup(
     name='gitprivacy',
-    version='1.0.0',
+    version='1.1.0',
     description='Git extension that adds timestamp blurring',
     long_description=README,
-    author='Benjamin Brahmer',
-    author_email='info@b-brahmer.de',
-    url='https://git.b-brahmer.de/Grotax/pyGitPrivacy',
+    maintainer='Christian Burkert',
+    author_email='gitprivacy@cburkert.de',
+    url='https://github.com/cburkert/pyGitPrivacy',
     license=LICENSE,
     packages=find_packages(exclude=('tests', 'docs')),
     include_package_data=True,
@@ -23,7 +22,7 @@ setup(
         'gitpython',
         'colorama',
         'progressbar2',
-        'cryptography'
+        'pynacl',
     ],
     entry_points={
         'console_scripts': [

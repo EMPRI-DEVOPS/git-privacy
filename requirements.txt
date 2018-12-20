@@ -1,4 +1,4 @@
 colorama
-cryptography
 gitpython
 progressbar2
+pynacl
