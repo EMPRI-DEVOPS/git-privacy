@@ -5,16 +5,19 @@ git privacy
 import argparse
 from datetime import datetime, timezone
 import os
+import re
 import stat
 import sys
+from typing import Optional, Tuple
 import configparser
-import sqlite3
 import git
 import progressbar
 import colorama
 from . import timestamp
 from . import crypto
-from . import database
+
+
+MSG_TAG = "GitPrivacy: "
 
 
 def read_config(gitdir):
@@ -22,7 +25,7 @@ def read_config(gitdir):
     repo = git.Repo(gitdir)
     config = {}
     config_reader = repo.config_reader(config_level='repository')
-    options = ["password", "mode", "salt", "limit", "databasepath"]
+    options = ["password", "mode", "salt", "limit"]
     for option in options:
         try:
             config[option] = config_reader.get_value("privacy", option)
@@ -39,9 +42,6 @@ def read_config(gitdir):
                 raise missing_option
             elif missing_option.option == "limit":
                 config["limit"] = False
-            elif missing_option.option == "databasepath":
-                print("databasepath not defined using path to repository", file=sys.stderr)
-                config["databasepath"] = "notdefined"
     if config["mode"] == "reduce":
         try:
             config["pattern"] = config_reader.get_value("privacy", "pattern")
@@ -88,140 +88,100 @@ def copy_hook(args, hook):
 
 def do_log(args):
     """ creates a git log like output """
-    db_connection = connect_to_database(args.config, args.gitdir)
     colorama.init(autoreset=True)
     time_manager = timestamp.TimeStamp()
     repo = args.repo
     commit_list = list(repo.iter_commits())
 
-    try:
-        db_entries = db_connection.get()
-        for commit_id in commit_list:
-            commit = repo.commit(commit_id)
-            print(colorama.Fore.YELLOW +"commit {}".format(commit.hexsha))
-            print(f"Author:\t\t{commit.author.name} <{commit.author.email}>")
-            if commit.hexsha in db_entries:
-                real_date = db_entries[commit.hexsha]
-                print(colorama.Fore.RED + "Date:\t\t{}".format(
-                    time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)))
-                print(colorama.Fore.GREEN + "RealDate:\t{}".format(real_date))
-            else:
-                print("Date:\t{}".format(time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset)))
-            print(os.linesep + "    {} ".format(commit.message))
-    except sqlite3.OperationalError as db_e:
-        print(db_e)
-        print("No data found in Database {}".format(db_connection.get_path()))
-    finally:
-        db_connection.close()
+    for commit in commit_list:
+        print(colorama.Fore.YELLOW +"commit {}".format(commit.hexsha))
+        print(f"Author:\t\t{commit.author.name} <{commit.author.email}>")
+        orig_dates = _decrypt_from_msg(args.crypto, commit.message)
+        if orig_dates is not None:
+            a_date, c_date = orig_dates
+            print(colorama.Fore.RED +
+                  f"Date:\t\t{time_manager.to_string(commit.authored_datetime)}")
+            print(colorama.Fore.GREEN +
+                  f"RealDate:\t{time_manager.to_string(a_date)}")
+        else:
+            print(f"Date:\t\t{time_manager.to_string(commit.authored_datetime)}")
+        print(os.linesep + f"    {commit.message}")
+
+
+def _extract_enc_dates(msg: str) -> Optional[str]:
+    """Extract encrypted dates from the commit message"""
+    for line in msg.splitlines():
+        match = re.search(f'^{MSG_TAG}(\S+)', line)
+        if match:
+            return match.group(1)
+    return None
+
+
+def _encrypt_for_msg(crypto, a_date: datetime, c_date: datetime) -> str:
+    plain = f"{a_date.isoformat()};{c_date.isoformat()}"
+    return crypto.encrypt(plain)
+
+
+def _decrypt_from_msg(crypto, message: str) -> Optional[Tuple[datetime, datetime]]:
+    enc_dates = _extract_enc_dates(message)
+    if enc_dates is None:
+        return None
+    plain_dates = crypto.decrypt(enc_dates)
+    a_date, c_date = [datetime.fromisoformat(d) for d in plain_dates.split(";")]
+    return a_date, c_date
 
 
 def do_redate(args):
-    db_connection = connect_to_database(args.config, args.gitdir)
     repo = args.repo
     time_manager = args.time_manager
-    commit_list = list(repo.iter_commits())
-    commit_amount = len(commit_list)
-    first_commit = commit_list[-1]
-    first_stamp = time_manager.format(time_manager.seconds_to_gitstamp(first_commit.authored_date, first_commit.author_tz_offset))
-    last_commit = commit_list[0]
-    last_stamp = time_manager.format(time_manager.seconds_to_gitstamp(last_commit.authored_date, last_commit.author_tz_offset))
 
-    # get all old dates
-    datelist_original = [
-        (
-            time_manager.seconds_to_gitstamp(commit.authored_date, commit.author_tz_offset),
-            time_manager.seconds_to_gitstamp(commit.committed_date, commit.committer_tz_offset)
-        ) for commit in commit_list
-    ]
+    if time_manager.mode != "reduce":
+        print("Redate only supported in 'reduce' mode.")
+        sys.exit(0)
 
+    commits = list(repo.iter_commits())
+    if args.only_head:
+        commits = commits[0:1]
+    verbose = not args.only_head
+    if verbose:
+        print("Redating commits...")
+        progress = progressbar.bar.ProgressBar(min_value=0, max_value=len(commits)).start()
+        counter = 0
+    env_cmd = ""
+    msg_cmd = ""
     try:
-        start_date = input("Enter the start date [Default: {}]:".format(first_stamp))
-        if start_date == "":
-            start_date = first_stamp
-        try:
-            start_date = time_manager.format(start_date)
-        except ValueError:
-            print("ERROR: Invalid Date")
-        print("Your start date will be: {}".format(start_date))
-
-        end_date = input("Enter the end date [Default: {}]:".format(last_stamp))
-        if end_date == "":
-            end_date = last_stamp
-        try:
-            end_date = time_manager.format(end_date)
-        except ValueError:
-            print("ERROR: Invalid Date")
-        print("Your end date will be: {}".format(end_date))
-
-        input("Last time to make a backup (cancel via ctrl+c)")
-
-        datelist = time_manager.datelist(start_date, end_date, commit_amount)
-
-        progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
-        counter = 0
-        for commit, date in zip(commit_list, datelist):
-            sub_command = "if [ $GIT_COMMIT = {} ] \n then \n\t export GIT_AUTHOR_DATE=\"{}\"\n \t export GIT_COMMITTER_DATE=\"{}\"\n fi".format(commit, date, date)
-            my_command = ["git", "filter-branch", "-f", "--env-filter", sub_command]
-            repo.git.execute(command=my_command)
-            counter += 1
-            progress.update(counter)
-        progress.finish()
-
-        # update the DB
-        print("Updating database ...")
-        progress = progressbar.bar.ProgressBar(min_value=0, max_value=commit_amount).start()
-        counter = 0
-        for commit, (a_date, c_date) in zip(commit_list, datelist_original):
-            db_connection.put(commit.hexsha, a_date, c_date)
-            counter += 1
-            progress.update(counter)
-
+        for commit in commits:
+            a_redacted = time_manager.reduce(commit.authored_datetime)
+            c_redacted = time_manager.reduce(commit.committed_datetime)
+            env_cmd += (
+                f"if test \"$GIT_COMMIT\" = \"{commit.hexsha}\"; then "
+                f"export GIT_AUTHOR_DATE=\"{a_redacted}\"; "
+                f"export GIT_COMMITTER_DATE=\"{c_redacted}\"; fi; "
+            )
+            # Only add encrypted dates to commit message if none are present
+            # already. Keep the original ones else.
+            keep_msg = any([line.startswith(MSG_TAG)
+                            for line in commit.message.splitlines()])
+            enc_dates = _encrypt_for_msg(args.crypto, commit.authored_datetime,
+                                         commit.committed_datetime)
+            append_cmd = "" if keep_msg else f"&& echo && echo \"{MSG_TAG}{enc_dates}\""
+            msg_cmd += (
+                f"if test \"$GIT_COMMIT\" = \"{commit.hexsha}\"; then "
+                f"cat {append_cmd}; fi; "
+            )
+            if verbose:
+                counter += 1
+                progress.update(counter)
+        if verbose:
+            progress.finish()
+        filter_cmd = ["git", "filter-branch", "-f",
+                      "--env-filter", env_cmd,
+                      "--msg-filter", msg_cmd,
+                      "--",
+                      "HEAD" if not args.only_head else "HEAD~1..HEAD"]
+        repo.git.execute(command=filter_cmd)
     except KeyboardInterrupt:
-        print("\n\nERROR: Cancelled by user")
-    finally:
-        db_connection.close()
-
-
-def connect_to_database(config, repo_path):
-    try:
-        if config["databasepath"] != "notdefined":
-            privacy = crypto.Crypto(config["salt"], str(config["password"]))
-            db_connection = database.Database(
-                os.path.expanduser(config["databasepath"]), privacy)
-        else:
-            privacy = crypto.Crypto(config["salt"], str(config["password"]))
-            db_connection = database.Database(repo_path+"/history.db", privacy)
-    except sqlite3.Error as sq_error:
-        print("A database error occurred: {}".format(sq_error.args[0]), file=sys.stderr)
-        sys.exit(1)
-
-    return db_connection
-
-
-def do_getstamp(args):
-    stamp = args.time_manager.get_next_timestamp(args.repo)
-    stamp = stamp.replace(microsecond=0)
-    print(stamp.isoformat())
-
-
-def do_store(args):
-    try:
-        db_connection = connect_to_database(args.config, args.gitdir)
-        db_connection.put(args.hash, args.a_date, args.c_date)
-        db_connection.close()
-    except sqlite3.Error as db_error:
-        print("Cant't write to your database: {}".format(db_error), file=sys.stderr)
-        sys.exit(1)
-
-
-def do_clean(args):
-    db_connection = connect_to_database(args.config, args.gitdir)
-    repo = args.repo
-    commit_list = []
-    for branch in repo.branches:
-        commit_list.extend(repo.iter_commits(branch))
-    db_connection.clean_database([c.hexsha for c in set(commit_list)])
-    db_connection.close()
+        print("\n\nWarning: Aborted by user")
 
 
 def do_check(args):
@@ -254,6 +214,7 @@ def init(args):
     except configparser.NoSectionError:
         print("Not configured", file=sys.stderr)
         sys.exit(1)
+    args.crypto = crypto.Crypto(config["salt"], str(config["password"]))
     args.time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
     args.repo = git.Repo(args.gitdir)
 
@@ -280,22 +241,13 @@ def main(): # pylint: disable=too-many-branches, too-many-statements
     parser_log.set_defaults(func=do_log)
     # Command 'redate'
     parser_redate = subparsers.add_parser('redate', help="Redact timestamps of existing commits")
+    parser_redate.add_argument('--only-head',
+                               help="redate only the current head",
+                               action='store_true')
     parser_redate.set_defaults(func=do_redate)
-    # Command 'clean'
-    parser_clean = subparsers.add_parser('clean', help="Remove commits from database that no longer exist")
-    parser_clean.set_defaults(func=do_clean)
     # Command 'check'
     parser_check = subparsers.add_parser('check', help="Check for timezone leaks")
     parser_check.set_defaults(func=do_check)
-    # Command 'getstamp'
-    parser_stamp = subparsers.add_parser('getstamp', help="Get a new stamp depending on your chosen method")
-    parser_stamp.set_defaults(func=do_getstamp)
-    # Command 'store'
-    parser_store = subparsers.add_parser('store', help="Store a commit timestamps in the database.")
-    parser_store.add_argument('hash', help="Commit ID in hexadecimal form")
-    parser_store.add_argument('a_date', help="Author date")
-    parser_store.add_argument('c_date', help="Committer date")
-    parser_store.set_defaults(func=do_store)
 
     # parse the args and call whatever function was selected
     args = parser.parse_args()

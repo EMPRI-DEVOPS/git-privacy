@@ -3,14 +3,9 @@
 gitdir="$(git rev-parse --git-dir)"
 hook="$gitdir/hooks/post-commit"
 
-author_date=$(git log -1 --format=%ad)
-committer_date=$(git log -1 --format=%cd)
-date=$(git-privacy --gitdir "$(git rev-parse --show-toplevel)" getstamp)
-
 [ -x $hook ] && chmod -x $hook
 
-GIT_COMMITTER_DATE="$date" git commit --amend --date "$date" -C HEAD -n
+git-privacy --gitdir "$(git rev-parse --show-toplevel)" redate --only-head
 
 chmod +x $hook
 
-git-privacy --gitdir "$(git rev-parse --show-toplevel)" store $(git rev-parse HEAD) "$author_date" "$committer_date"
