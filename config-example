@@ -1,9 +1,5 @@
 [privacy]
-	password = 123456
-	mode = simple #simple,reduce
-	pattern = "h,s" #"y,M,d,h,m,s"
+	password = passw0rd
+	mode = reduce
+	pattern = "m,s"
 	limit = 8-18
-	databasepath = ~/.git/gitprivacy.db
-
-[advice]
-	ignoredHook = false

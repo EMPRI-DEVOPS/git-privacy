@@ -1,11 +1,3 @@
 #!/bin/sh
 
-gitdir="$(git rev-parse --git-dir)"
-hook="$gitdir/hooks/post-commit"
-
-[ -x $hook ] && chmod -x $hook
-
 git-privacy --gitdir "$(git rev-parse --show-toplevel)" redate --only-head
-
-chmod +x $hook
-
