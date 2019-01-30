@@ -57,12 +57,3 @@ class LimitTestCase(unittest.TestCase):
                             hour=17, minute=0, second=0)
         self.assertEqual(ts.limit, (9, 17))
         self.assertEqual(ts.enforce_limit(full), expected)
-
-
-class AverageTestCase(unittest.TestCase):
-    def test_basic_average(self):
-        ts = timestamp.TimeStamp()
-        delta = timedelta(seconds=5)
-        now = datetime.now()
-        avg = ts.average([now, now+delta, now+(delta*4)])
-        self.assertEqual(avg, delta*2)
