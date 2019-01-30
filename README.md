@@ -11,9 +11,9 @@ might need them.
 
 ## Installation
 
-+ `git clone https://github.com/cburkert/pyGitPrivacy.git`
-+ `cd pyGitPrivacy`
-+ `pip install .` (You might need to be superuser if you are not in a virtual environment)
++ `pip3 install git+https://github.com/cburkert/pyGitPrivacy.git`
+
+Note: Git-privacy requires Python version 3.5 or later.
 
 
 ## Getting Started
