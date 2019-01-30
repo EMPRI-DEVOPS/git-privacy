@@ -1,3 +1,5 @@
+[![Latest version on PyPI](https://img.shields.io/pypi/v/gitprivacy.svg)](https://pypi.org/project/gitprivacy/)
+[![Supported Python versions](https://img.shields.io/pypi/pyversions/gitprivacy.svg)](https://pypi.org/project/gitprivacy/)
 [![Build Status](https://travis-ci.org/cburkert/pyGitPrivacy.svg?branch=master)](https://travis-ci.org/cburkert/pyGitPrivacy)
 
 # git-privacy: Keep your coding hours private
@@ -11,7 +13,7 @@ might need them.
 
 ## Installation
 
-+ `pip3 install gitprivacy`
+    pip3 install gitprivacy
 
 Note: Git-privacy requires Python version 3.5 or later.
 
