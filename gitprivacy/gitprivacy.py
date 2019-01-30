@@ -30,7 +30,7 @@ def read_config(gitdir):
         try:
             config[option] = config_reader.get_value("privacy", option)
         except configparser.NoOptionError as missing_option:
-            if missing_option.option == "salt":
+            if missing_option.option == "salt" and config["password"]:
                 print("No Salt found generating a new salt....", file=sys.stderr)
                 config["salt"] = crypto.generate_salt()
                 write_salt(gitdir, config["salt"])
@@ -38,8 +38,7 @@ def read_config(gitdir):
                 print("No mode defined using default", file=sys.stderr)
                 config["mode"] = "reduce"
             elif missing_option.option == "password":
-                print("error no password", file=sys.stderr)
-                raise missing_option
+                config["password"] = None
             elif missing_option.option == "limit":
                 config["limit"] = False
     if config["mode"] == "reduce":
@@ -124,7 +123,7 @@ def _encrypt_for_msg(crypto, a_date: datetime, c_date: datetime) -> str:
 
 def _decrypt_from_msg(crypto, message: str) -> Optional[Tuple[datetime, datetime]]:
     enc_dates = _extract_enc_dates(message)
-    if enc_dates is None:
+    if crypto is None or enc_dates is None:
         return None
     plain_dates = crypto.decrypt(enc_dates)
     a_date, c_date = [datetime.fromisoformat(d) for d in plain_dates.split(";")]
@@ -162,9 +161,12 @@ def do_redate(args):
             # already. Keep the original ones else.
             keep_msg = any([line.startswith(MSG_TAG)
                             for line in commit.message.splitlines()])
-            enc_dates = _encrypt_for_msg(args.crypto, commit.authored_datetime,
-                                         commit.committed_datetime)
-            append_cmd = "" if keep_msg else f"&& echo && echo \"{MSG_TAG}{enc_dates}\""
+            if keep_msg or args.crypto is None:
+                append_cmd = ""
+            else:
+                enc_dates = _encrypt_for_msg(args.crypto, commit.authored_datetime,
+                                             commit.committed_datetime)
+                append_cmd = f"&& echo && echo \"{MSG_TAG}{enc_dates}\""
             msg_cmd += (
                 f"if test \"$GIT_COMMIT\" = \"{commit.hexsha}\"; then "
                 f"cat {append_cmd}; fi; "
@@ -214,7 +216,8 @@ def init(args):
     except configparser.NoSectionError:
         print("Not configured", file=sys.stderr)
         sys.exit(1)
-    args.crypto = crypto.Crypto(config["salt"], str(config["password"]))
+    args.crypto = (crypto.Crypto(config["salt"], str(config["password"]))
+                   if config["password"] else None)
     args.time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
     args.repo = git.Repo(args.gitdir)
 
