@@ -2,7 +2,7 @@
 """
 git privacy
 """
-import argparse
+import click
 from datetime import datetime, timezone
 import os
 import re
@@ -11,13 +11,33 @@ import sys
 from typing import Optional, Tuple
 import configparser
 import git
-import progressbar
-import colorama
 from . import timestamp
 from . import crypto
 
 
 MSG_TAG = "GitPrivacy: "
+
+
+@click.group()
+@click.option('--gitdir', default=os.getcwd,
+              type=click.Path(exists=True, file_okay=False, dir_okay=True, readable=True),
+              help="Path to your Git repsitory.")
+@click.pass_context
+def cli(ctx, gitdir):
+    ctx.ensure_object(dict)
+    try:
+        config = read_config(gitdir)
+        ctx.obj["config"] = config
+    except git.InvalidGitRepositoryError as git_error:
+        print("Can't load repository: {}".format(git_error), file=sys.stderr)
+        sys.exit(1)
+    except configparser.NoSectionError:
+        print("Not configured", file=sys.stderr)
+        sys.exit(1)
+    ctx.obj["crypto"] = (crypto.Crypto(config["salt"], str(config["password"]))
+                     if config["password"] else None)
+    ctx.obj["time"] = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
+    ctx.obj["repo"] = git.Repo(gitdir)
 
 
 def read_config(gitdir):
@@ -60,15 +80,21 @@ def write_salt(gitdir, salt):
     config_writer.release()
 
 
-def do_init(args):
-    copy_hook(args, "post-commit")
-    if args.enable_check:
-        copy_hook(args, "pre-commit")
+@cli.command('init')
+@click.option('-c', '--enable-check', is_flag=True,
+              help="Enable execution of 'check' before committing.")
+@click.pass_context
+def do_init(ctx, enable_check):
+    """Init git-privacy for this repository."""
+    repo = ctx.obj["repo"]
+    copy_hook(repo, "post-commit")
+    if enable_check:
+        copy_hook(repo, "pre-commit")
 
-def copy_hook(args, hook):
+def copy_hook(repo: git.Repo, hook: str) -> None:
     from pkg_resources import resource_stream, resource_string
     import shutil
-    hook_fn = os.path.join(args.repo.git_dir, "hooks", hook)
+    hook_fn = os.path.join(repo.git_dir, "hooks", hook)
     try:
         dst = open(hook_fn, "xb")
     except FileExistsError as e:
@@ -85,26 +111,26 @@ def copy_hook(args, hook):
             print("Installed {} hook".format(hook))
 
 
-def do_log(args):
-    """ creates a git log like output """
-    colorama.init(autoreset=True)
-    time_manager = timestamp.TimeStamp()
-    repo = args.repo
+@cli.command('log')
+@click.pass_context
+def do_log(ctx):
+    """Display a git-log-like history."""
+    tm = timestamp.TimeStamp()
+    repo = ctx.obj["repo"]
     commit_list = list(repo.iter_commits())
-
+    buf = list()
     for commit in commit_list:
-        print(colorama.Fore.YELLOW +"commit {}".format(commit.hexsha))
-        print(f"Author:\t\t{commit.author.name} <{commit.author.email}>")
-        orig_dates = _decrypt_from_msg(args.crypto, commit.message)
+        buf.append(click.style(f"commit {commit.hexsha}", fg='yellow'))
+        buf.append(f"Author:\t\t{commit.author.name} <{commit.author.email}>")
+        orig_dates = _decrypt_from_msg(ctx.obj["crypto"], commit.message)
         if orig_dates is not None:
             a_date, c_date = orig_dates
-            print(colorama.Fore.RED +
-                  f"Date:\t\t{time_manager.to_string(commit.authored_datetime)}")
-            print(colorama.Fore.GREEN +
-                  f"RealDate:\t{time_manager.to_string(a_date)}")
+            buf.append(click.style(f"Date:\t\t{tm.to_string(commit.authored_datetime)}", fg='red'))
+            buf.append(click.style(f"RealDate:\t{tm.to_string(a_date)}", fg='green'))
         else:
-            print(f"Date:\t\t{time_manager.to_string(commit.authored_datetime)}")
-        print(os.linesep + f"    {commit.message}")
+            buf.append(f"Date:\t\t{tm.to_string(commit.authored_datetime)}")
+        buf.append(os.linesep + f"    {commit.message}")
+    click.echo_via_pager(os.linesep.join(buf))
 
 
 def _extract_enc_dates(msg: str) -> Optional[str]:
@@ -130,26 +156,23 @@ def _decrypt_from_msg(crypto, message: str) -> Optional[Tuple[datetime, datetime
     return a_date, c_date
 
 
-def do_redate(args):
-    repo = args.repo
-    time_manager = args.time_manager
-
-    if time_manager.mode != "reduce":
-        print("Redate only supported in 'reduce' mode.")
-        sys.exit(0)
+@cli.command('redate')
+@click.option('--only-head', is_flag=True,
+              help="Redate only the current head.")
+@click.pass_context
+def do_redate(ctx, only_head):
+    """Redact timestamps of existing commits."""
+    repo = ctx.obj["repo"]
+    time_manager = ctx.obj["time"]
 
     commits = list(repo.iter_commits())
-    if args.only_head:
+    if only_head:
         commits = commits[0:1]
-    verbose = not args.only_head
-    if verbose:
-        print("Redating commits...")
-        progress = progressbar.bar.ProgressBar(min_value=0, max_value=len(commits)).start()
-        counter = 0
     env_cmd = ""
     msg_cmd = ""
-    try:
-        for commit in commits:
+    with click.progressbar(commits,
+                           label="Redating commits") as bar:
+        for commit in bar:
             a_redacted = time_manager.reduce(commit.authored_datetime)
             c_redacted = time_manager.reduce(commit.committed_datetime)
             env_cmd += (
@@ -161,35 +184,30 @@ def do_redate(args):
             # already. Keep the original ones else.
             keep_msg = any([line.startswith(MSG_TAG)
                             for line in commit.message.splitlines()])
-            if keep_msg or args.crypto is None:
+            if keep_msg or ctx.obj["crypto"] is None:
                 append_cmd = ""
             else:
-                enc_dates = _encrypt_for_msg(args.crypto, commit.authored_datetime,
+                enc_dates = _encrypt_for_msg(ctx.obj["crypto"], commit.authored_datetime,
                                              commit.committed_datetime)
                 append_cmd = f"&& echo && echo \"{MSG_TAG}{enc_dates}\""
             msg_cmd += (
                 f"if test \"$GIT_COMMIT\" = \"{commit.hexsha}\"; then "
                 f"cat {append_cmd}; fi; "
             )
-            if verbose:
-                counter += 1
-                progress.update(counter)
-        if verbose:
-            progress.finish()
-        filter_cmd = ["git", "filter-branch", "-f",
-                      "--env-filter", env_cmd,
-                      "--msg-filter", msg_cmd,
-                      "--",
-                      "HEAD" if not args.only_head else "HEAD~1..HEAD"]
-        repo.git.execute(command=filter_cmd)
-    except KeyboardInterrupt:
-        print("\n\nWarning: Aborted by user")
+    filter_cmd = ["git", "filter-branch", "-f",
+                  "--env-filter", env_cmd,
+                  "--msg-filter", msg_cmd,
+                  "--",
+                  "HEAD" if not only_head else "HEAD~1..HEAD"]
+    repo.git.execute(command=filter_cmd)
 
 
-def do_check(args):
-    """Check whether the timezone has changed since the last commit."""
-    time_manager = args.time_manager
-    last_commit = next(args.repo.iter_commits())
+@cli.command('check')
+@click.pass_context
+def do_check(ctx):
+    """Check for timezone change since last commit."""
+    time_manager = ctx.obj["time"]
+    last_commit = next(ctx.obj["repo"].iter_commits())
     current_tz = datetime.now(timezone.utc).astimezone().tzinfo
     last_tz = last_commit.authored_datetime.tzinfo
     dummy_date = datetime.now()
@@ -197,66 +215,5 @@ def do_check(args):
         print("Warning: Your timezone has changed.")
 
 
-def is_readable_directory(string):
-    gitdir = string
-    if not os.path.isdir(gitdir):
-        raise argparse.ArgumentTypeError("{} is not a directory".format(gitdir))
-    if not os.access(gitdir, os.R_OK):
-        raise argparse.ArgumentTypeError("{} is not readable".format(gitdir))
-    return gitdir
-
-
-def init(args):
-    try:
-        config = read_config(args.gitdir)
-        args.config = config
-    except git.InvalidGitRepositoryError as git_error:
-        print("Can't load repository: {}".format(git_error), file=sys.stderr)
-        sys.exit(1)
-    except configparser.NoSectionError:
-        print("Not configured", file=sys.stderr)
-        sys.exit(1)
-    args.crypto = (crypto.Crypto(config["salt"], str(config["password"]))
-                   if config["password"] else None)
-    args.time_manager = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
-    args.repo = git.Repo(args.gitdir)
-
-
-def main(): # pylint: disable=too-many-branches, too-many-statements
-    # create the top-level parser
-    parser = argparse.ArgumentParser()
-    parser.set_defaults(func=do_log)
-    parser.add_argument('--gitdir',
-                        help="Path to your Git repsitory",
-                        required=False,
-                        type=is_readable_directory,
-                        default=os.getcwd())
-    subparsers = parser.add_subparsers(title='subcommands')
-
-    # Command 'init'
-    parser_init = subparsers.add_parser('init', help="Init git-privacy for this repository")
-    parser_init.add_argument('-c', '--enable-check',
-                             help="enable execution of 'check' before committing",
-                             action='store_true')
-    parser_init.set_defaults(func=do_init)
-    # Command 'log'
-    parser_log = subparsers.add_parser('log', help="Display a git log like history")
-    parser_log.set_defaults(func=do_log)
-    # Command 'redate'
-    parser_redate = subparsers.add_parser('redate', help="Redact timestamps of existing commits")
-    parser_redate.add_argument('--only-head',
-                               help="redate only the current head",
-                               action='store_true')
-    parser_redate.set_defaults(func=do_redate)
-    # Command 'check'
-    parser_check = subparsers.add_parser('check', help="Check for timezone leaks")
-    parser_check.set_defaults(func=do_check)
-
-    # parse the args and call whatever function was selected
-    args = parser.parse_args()
-    init(args)
-    args.func(args)
-
-
 if __name__ == '__main__':
-    main()
+    cli(obj={})

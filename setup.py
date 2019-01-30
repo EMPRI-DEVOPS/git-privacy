@@ -19,14 +19,13 @@ setup(
     include_package_data=True,
     python_requires='>=3.5',
     install_requires=[
+        'click>=7',
         'gitpython',
-        'colorama',
-        'progressbar2',
         'pynacl',
     ],
     entry_points={
         'console_scripts': [
-            'git-privacy = gitprivacy.gitprivacy:main'
+            'git-privacy = gitprivacy.gitprivacy:cli'
         ]
     },
     classifiers=[

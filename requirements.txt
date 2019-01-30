@@ -1,4 +1,3 @@
-colorama
+click>=7
 gitpython
-progressbar2
 pynacl
