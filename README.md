@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/cburkert/pyGitPrivacy.svg?branch=master)](https://travis-ci.org/cburkert/pyGitPrivacy)
+
 # git-privacy: Keep your coding hours private
 
 Git-privacy redacts author and committer dates to keep your coding hours more
