@@ -21,25 +21,25 @@ Note: Git-privacy requires Python version 3.5 or later.
 ## Getting Started
 
 1. Add the following to `.git/config` and adapt it to your needs:
-
 ```
 [privacy]
-	password = <your-password>
 	mode = reduce
 	pattern = "ms"
 	#limit = 9-17
+	#password = ...
 ```
 
-2. Choose a strong password. It is used to encrypt your timestamps.
-3. Pick a redaction pattern from the following options:
+2. Pick a redaction `pattern` from the following options:
     + M: Sets the month to January
     + d: Sets the day to the first day of the month
     + h: Sets the hour to midnight
     + m: Sets the minute to zero (full hour)
     + s: Sets the seconds to zero (full minute)
-4. Set an acceptable timestamp range (`limit`). Outliers are rounded towards
+3. Set an acceptable timestamp range (`limit`). Outliers are rounded towards
    the set limits, e.g., commits at 17:30 (5:30pm) are set to 17:00. Only full
    hours are currently supported. Omit the limits setting to disable.
+4. Set a `password` if you want to be able to recover the full-resolution timestamps.
+   If no password is given, only the reduced timestamp will remain.
 5. Execute `git-privacy init`. This sets the necessary Git hooks.
 
 
