@@ -18,66 +18,71 @@ from . import crypto
 MSG_TAG = "GitPrivacy: "
 
 
+class GitPrivacyConfig(object):
+    SECTION = "privacy"
+    def __init__(self, gitdir: str) -> None:
+        self.gitdir = gitdir
+        try:
+            self.repo = git.Repo(gitdir)
+        except git.InvalidGitRepositoryError as e:
+            raise click.UsageError("not a git repository: '{}'".format(e))
+        with self.repo.config_reader() as config:
+            self.mode = config.get_value(self.SECTION, 'mode', 'reduce')
+            self.pattern = config.get_value(self.SECTION, 'pattern', '')
+            self.limit = config.get_value(self.SECTION, 'limit', '')
+            self.password = config.get_value(self.SECTION, 'password', '')
+            self.salt = config.get_value(self.SECTION, 'salt', '')
+
+    def get_crypto(self) -> Optional[crypto.Crypto]:
+        if not self.password:
+            return None
+        elif self.password and not self.salt:
+            self.salt = crypto.generate_salt()
+            self.write_config(salt=self.salt)
+        return crypto.Crypto(self.salt, str(self.password))
+
+    def get_timestamp(self) -> timestamp.TimeStamp:
+        if self.mode == "reduce" and self.pattern == '':
+            raise click.UsageError(click.wrap_text(
+                "Missing pattern configuration. Set a reduction pattern using\n"
+                "\n"
+                f"    git config {self.SECTION}.pattern <pattern>\n"
+                "\n"
+                "The pattern is a comma separated list that may contain the "
+                "following time unit identifiers: "
+                "M: month, d: day, h: hour, m: minute, s: second.",
+                preserve_paragraphs=True))
+        return timestamp.TimeStamp(self.pattern, self.limit, self.mode)
+
+
+
+
+    def write_config(self, **kwargs):
+        """Write config"""
+        with self.repo.config_writer(config_level='repository') as writer:
+            for key, value in kwargs.items():
+                writer.set_value("privacy", key, value)
+
+
 @click.group()
 @click.option('--gitdir', default=os.getcwd,
               type=click.Path(exists=True, file_okay=False, dir_okay=True, readable=True),
               help="Path to your Git repsitory.")
 @click.pass_context
 def cli(ctx, gitdir):
-    ctx.ensure_object(dict)
-    try:
-        config = read_config(gitdir)
-        ctx.obj["config"] = config
-    except git.InvalidGitRepositoryError as git_error:
-        print("Can't load repository: {}".format(git_error), file=sys.stderr)
-        sys.exit(1)
-    except configparser.NoSectionError:
-        print("Not configured", file=sys.stderr)
-        sys.exit(1)
-    ctx.obj["crypto"] = (crypto.Crypto(config["salt"], str(config["password"]))
-                     if config["password"] else None)
-    ctx.obj["time"] = timestamp.TimeStamp(config["pattern"], config["limit"], config["mode"])
-    ctx.obj["repo"] = git.Repo(gitdir)
+    ctx.obj = GitPrivacyConfig(gitdir)
 
 
-def read_config(gitdir):
-    """ Reads git config and returns a dictionary"""
-    repo = git.Repo(gitdir)
-    config = {}
-    config_reader = repo.config_reader(config_level='repository')
-    options = ["password", "mode", "salt", "limit"]
-    for option in options:
-        try:
-            config[option] = config_reader.get_value("privacy", option)
-        except configparser.NoOptionError as missing_option:
-            if missing_option.option == "salt" and config["password"]:
-                print("No Salt found generating a new salt....", file=sys.stderr)
-                config["salt"] = crypto.generate_salt()
-                write_salt(gitdir, config["salt"])
-            elif missing_option.option == "mode":
-                print("No mode defined using default", file=sys.stderr)
-                config["mode"] = "reduce"
-            elif missing_option.option == "password":
-                config["password"] = None
-            elif missing_option.option == "limit":
-                config["limit"] = False
-    if config["mode"] == "reduce":
-        try:
-            config["pattern"] = config_reader.get_value("privacy", "pattern")
-        except configparser.NoOptionError as missing_option:
-            print("no pattern, setting default pattern s", file=sys.stderr)
-            config["pattern"] = "s"
-    else:
-        config["pattern"] = ""
-    return config
-
-
-def write_salt(gitdir, salt):
-    """ Writes salt to config """
-    repo = git.Repo(gitdir)
-    config_writer = repo.config_writer(config_level='repository')
-    config_writer.set_value("privacy", "salt", salt)
-    config_writer.release()
+def assertCommits(ctx: click.Context) -> None:
+    """Assert that the current ref has commits."""
+    head = ctx.obj.repo.head
+    if not head.is_valid():
+        click.echo(
+            f"fatal: your current branch '{head.ref.name}' "
+            "does not have any commits yet",
+            err=True
+        )
+        ctx.exit(128)  # Same exit-code as used by git
 
 
 @cli.command('init')
@@ -86,7 +91,7 @@ def write_salt(gitdir, salt):
 @click.pass_context
 def do_init(ctx, enable_check):
     """Init git-privacy for this repository."""
-    repo = ctx.obj["repo"]
+    repo = ctx.obj.repo
     copy_hook(repo, "post-commit")
     if enable_check:
         copy_hook(repo, "pre-commit")
@@ -115,14 +120,16 @@ def copy_hook(repo: git.Repo, hook: str) -> None:
 @click.pass_context
 def do_log(ctx):
     """Display a git-log-like history."""
+    assertCommits(ctx)
     tm = timestamp.TimeStamp()
-    repo = ctx.obj["repo"]
+    repo = ctx.obj.repo
+    crypto = ctx.obj.get_crypto()
     commit_list = list(repo.iter_commits())
     buf = list()
     for commit in commit_list:
         buf.append(click.style(f"commit {commit.hexsha}", fg='yellow'))
         buf.append(f"Author:\t\t{commit.author.name} <{commit.author.email}>")
-        orig_dates = _decrypt_from_msg(ctx.obj["crypto"], commit.message)
+        orig_dates = _decrypt_from_msg(crypto, commit.message)
         if orig_dates is not None:
             a_date, c_date = orig_dates
             buf.append(click.style(f"Date:\t\t{tm.to_string(commit.authored_datetime)}", fg='red'))
@@ -162,8 +169,10 @@ def _decrypt_from_msg(crypto, message: str) -> Optional[Tuple[datetime, datetime
 @click.pass_context
 def do_redate(ctx, only_head):
     """Redact timestamps of existing commits."""
-    repo = ctx.obj["repo"]
-    time_manager = ctx.obj["time"]
+    assertCommits(ctx)
+    repo = ctx.obj.repo
+    time_manager = ctx.obj.get_timestamp()
+    crypto = ctx.obj.get_crypto()
 
     commits = list(repo.iter_commits())
     if only_head:
@@ -184,10 +193,10 @@ def do_redate(ctx, only_head):
             # already. Keep the original ones else.
             keep_msg = any([line.startswith(MSG_TAG)
                             for line in commit.message.splitlines()])
-            if keep_msg or ctx.obj["crypto"] is None:
+            if keep_msg or crypto is None:
                 append_cmd = ""
             else:
-                enc_dates = _encrypt_for_msg(ctx.obj["crypto"], commit.authored_datetime,
+                enc_dates = _encrypt_for_msg(crypto, commit.authored_datetime,
                                              commit.committed_datetime)
                 append_cmd = f"&& echo && echo \"{MSG_TAG}{enc_dates}\""
             msg_cmd += (
@@ -206,14 +215,10 @@ def do_redate(ctx, only_head):
 @click.pass_context
 def do_check(ctx):
     """Check for timezone change since last commit."""
-    time_manager = ctx.obj["time"]
-    last_commit = next(ctx.obj["repo"].iter_commits())
+    assertCommits(ctx)
+    last_commit = next(ctx.obj.repo.iter_commits())
     current_tz = datetime.now(timezone.utc).astimezone().tzinfo
     last_tz = last_commit.authored_datetime.tzinfo
     dummy_date = datetime.now()
     if last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date):
         print("Warning: Your timezone has changed.")
-
-
-if __name__ == '__main__':
-    cli(obj={})
