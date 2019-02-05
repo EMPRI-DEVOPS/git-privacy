@@ -2,6 +2,7 @@ import click
 from click.testing import CliRunner
 import git
 import os
+import time
 import unittest
 
 from gitprivacy.gitprivacy import cli
@@ -149,6 +150,36 @@ class TestGitPrivacy(unittest.TestCase):
                                       os.R_OK | os.X_OK))
             self.assertTrue(os.access(os.path.join(".git", "hooks", "pre-commit"),
                                       os.R_OK | os.X_OK))
+
+    def test_checkempty(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            result = self.invoke('check')
+            self.assertEqual(result.exit_code, 128)
+
+    def test_checkone(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            a = self.addCommit("a")
+            result = self.invoke('check')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output, "")
+
+    def test_checkchange(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            os.environ['TZ'] = 'Europe/London'
+            time.tzset()
+            a = self.addCommit("a")
+            os.environ['TZ'] = 'Europe/Berlin'
+            time.tzset()
+            result = self.invoke('check')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output,
+                             "Warning: Your timezone has changed." + os.linesep)
 
 
 if __name__ == '__main__':
