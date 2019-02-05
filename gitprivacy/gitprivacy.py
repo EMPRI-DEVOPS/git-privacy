@@ -32,6 +32,8 @@ class GitPrivacyConfig(object):
             self.limit = config.get_value(self.SECTION, 'limit', '')
             self.password = config.get_value(self.SECTION, 'password', '')
             self.salt = config.get_value(self.SECTION, 'salt', '')
+            self.ignoreTimezone = bool(config.get_value(self.SECTION,
+                                                        'ignoreTimezone', False))
 
     def get_crypto(self) -> Optional[crypto.Crypto]:
         if not self.password:
@@ -226,4 +228,6 @@ def do_check(ctx):
     last_tz = last_commit.authored_datetime.tzinfo
     dummy_date = datetime.now()
     if last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date):
-        print("Warning: Your timezone has changed.")
+        click.echo("Warning: Your timezone has changed.", err=True)
+        if not ctx.obj.ignoreTimezone:
+            ctx.exit(2)
