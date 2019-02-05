@@ -103,10 +103,14 @@ def copy_hook(repo: git.Repo, hook: str) -> None:
     try:
         dst = open(hook_fn, "xb")
     except FileExistsError as e:
-        print("Git hook already exists at {}".format(hook_fn), file=sys.stderr)
+        hook_txt = resource_string('gitprivacy.resources.hooks', hook).decode()
+        with open(hook_fn, "r") as f:
+            if f.read() == hook_txt:
+                print(f"{hook} hook is already installed.")
+                return
+        print(f"A Git hook already exists at {hook_fn}", file=sys.stderr)
         print("\nRemove hook and rerun or add the following to the existing "
-              "hook:\n\n{}".format(resource_string('gitprivacy.resources.hooks',
-                                                   hook).decode()))
+              f"hook:\n\n{hook_txt}")
         return
     else:
         with resource_stream('gitprivacy.resources.hooks', hook) as src, dst:
