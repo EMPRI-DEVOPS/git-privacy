@@ -108,6 +108,17 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(a.authored_date, ar.authored_date)
             self.assertNotEqual(b.authored_date, br.authored_date)
 
+    def test_redateheadsinglecommit(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            a = self.addCommit("a")
+            result = self.invoke('redate --only-head')
+            self.assertEqual(result.exit_code, 0)
+            ar = self.repo.commit("HEAD")
+            self.assertNotEqual(a, ar)
+            self.assertNotEqual(a.authored_date, ar.authored_date)
+
 
 if __name__ == '__main__':
     unittest.main()

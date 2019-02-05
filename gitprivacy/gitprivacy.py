@@ -179,6 +179,7 @@ def do_redate(ctx, only_head):
     crypto = ctx.obj.get_crypto()
 
     commits = list(repo.iter_commits())
+    first_commit = len(commits) == 1
     if only_head:
         commits = commits[0:1]
     env_cmd = ""
@@ -211,7 +212,7 @@ def do_redate(ctx, only_head):
                   "--env-filter", env_cmd,
                   "--msg-filter", msg_cmd,
                   "--",
-                  "HEAD" if not only_head else "HEAD~1..HEAD"]
+                  "HEAD" if not only_head or first_commit else "HEAD~1..HEAD"]
     repo.git.execute(command=filter_cmd)
 
 
