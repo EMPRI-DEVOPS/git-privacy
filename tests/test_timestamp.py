@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timedelta
 
-from . import timestamp
+from gitprivacy import timestamp
 
 class ReduceTestCase(unittest.TestCase):
     def setUp(self):
