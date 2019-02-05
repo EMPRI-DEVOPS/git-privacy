@@ -1,5 +1,0 @@
-[privacy]
-	password = passw0rd
-	mode = reduce
-	pattern = "m,s"
-	limit = 8-18
