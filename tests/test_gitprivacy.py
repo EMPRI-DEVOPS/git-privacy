@@ -1,6 +1,7 @@
 import click
 from click.testing import CliRunner
 import git
+import os
 import unittest
 
 from gitprivacy.gitprivacy import cli
@@ -118,6 +119,36 @@ class TestGitPrivacy(unittest.TestCase):
             ar = self.repo.commit("HEAD")
             self.assertNotEqual(a, ar)
             self.assertNotEqual(a.authored_date, ar.authored_date)
+
+    def test_init(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output, "Installed post-commit hook" + os.linesep)
+            self.assertTrue(os.access(os.path.join(".git", "hooks", "post-commit"),
+                                      os.R_OK | os.X_OK))
+            self.assertFalse(os.access(os.path.join(".git", "hooks", "pre-commit"),
+                                       os.F_OK))
+            a = self.addCommit("a")  # gitpython already returns the rewritten commit
+            self.assertEqual(a.authored_datetime,
+                             a.authored_datetime.replace(minute=0, second=0))
+
+    def test_initwithcheck(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            result = self.invoke('init --enable-check')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output, os.linesep.join(
+                f"Installed {hook} hook"
+                for hook in ["post-commit", "pre-commit"]
+            ) + os.linesep)
+            self.assertTrue(os.access(os.path.join(".git", "hooks", "post-commit"),
+                                      os.R_OK | os.X_OK))
+            self.assertTrue(os.access(os.path.join(".git", "hooks", "pre-commit"),
+                                      os.R_OK | os.X_OK))
 
 
 if __name__ == '__main__':
