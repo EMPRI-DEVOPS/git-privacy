@@ -156,7 +156,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.setUpRepo()
             self.setConfig()
             result = self.invoke('check')
-            self.assertEqual(result.exit_code, 128)
+            self.assertEqual(result.exit_code, 0)
 
     def test_checkone(self):
         with self.runner.isolated_filesystem():
@@ -195,6 +195,20 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output,
                              "Warning: Your timezone has changed." + os.linesep)
+
+    def test_checkwithhook(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            result = self.invoke('init -c')
+            self.assertEqual(result.exit_code, 0)
+            os.environ['TZ'] = 'Europe/London'
+            time.tzset()
+            a = self.addCommit("a")
+            os.environ['TZ'] = 'Europe/Berlin'
+            time.tzset()
+            with self.assertRaises(git.GitCommandError):
+                self.addCommit("b")
 
 
 if __name__ == '__main__':

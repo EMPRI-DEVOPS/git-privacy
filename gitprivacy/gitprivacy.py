@@ -222,8 +222,9 @@ def do_redate(ctx, only_head):
 @click.pass_context
 def do_check(ctx):
     """Check for timezone change since last commit."""
-    assertCommits(ctx)
-    last_commit = next(ctx.obj.repo.iter_commits())
+    if not ctx.obj.repo.head.is_valid():
+        return  # no previous commits
+    last_commit = ctx.obj.repo.head.commit
     current_tz = datetime.now(timezone.utc).astimezone().tzinfo
     last_tz = last_commit.authored_datetime.tzinfo
     dummy_date = datetime.now()
