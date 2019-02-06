@@ -15,5 +15,4 @@ class CryptoTestCase(unittest.TestCase):
         c = crypto.Crypto(salt, "passw0rd")
         c2 = crypto.Crypto(salt, "password")
         enc = c.encrypt("foobar")
-        with self.assertRaises(CryptoError):
-            c2.decrypt(enc)
+        self.assertEqual(c2.decrypt(enc), None)

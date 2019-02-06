@@ -210,6 +210,34 @@ class TestGitPrivacy(unittest.TestCase):
             with self.assertRaises(git.GitCommandError):
                 self.addCommit("b")
 
+    def test_encryptdates(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.git.config(["privacy.password", "passw0ord"])
+            a = self.addCommit("a")
+            result = self.invoke('log')
+            self.assertEqual(result.exit_code, 0)
+            self.assertFalse("RealDate" in result.output)
+            result = self.invoke('redate')
+            self.assertEqual(result.exit_code, 0)
+            result = self.invoke('log')
+            self.assertEqual(result.exit_code, 0)
+            self.assertTrue("RealDate" in result.output)
+
+    def test_pwdmismatch(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.git.config(["privacy.password", "passw0ord"])
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            a = self.addCommit("a")
+            self.git.config(["privacy.password", "geheim"])
+            result = self.invoke('log')
+            self.assertEqual(result.exit_code, 0)
+            self.assertFalse("RealDate" in result.output)
+
 
 if __name__ == '__main__':
     unittest.main()

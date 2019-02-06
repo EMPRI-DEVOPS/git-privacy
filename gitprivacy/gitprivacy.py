@@ -165,6 +165,8 @@ def _decrypt_from_msg(crypto, message: str) -> Optional[Tuple[datetime, datetime
     if crypto is None or enc_dates is None:
         return None
     plain_dates = crypto.decrypt(enc_dates)
+    if plain_dates is None:
+        return None
     a_date, c_date = [datetime.fromisoformat(d) for d in plain_dates.split(";")]
     return a_date, c_date
 

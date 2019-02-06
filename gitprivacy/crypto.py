@@ -1,8 +1,10 @@
 from base64 import b64encode, b64decode
 import sys
+from typing import Optional
 
 from nacl import pwhash, secret, utils
 from nacl.encoding import Base64Encoder
+from nacl.exceptions import CryptoError
 
 
 class Crypto():
@@ -23,11 +25,14 @@ class Crypto():
             encoder=Base64Encoder
         ).decode('utf-8')
 
-    def decrypt(self, data: str) -> str:
-        return self.__box.decrypt(
-            str(data).encode('utf-8'),
-            encoder=Base64Encoder
-        ).decode('utf-8')
+    def decrypt(self, data: str) -> Optional[str]:
+        try:
+            return self.__box.decrypt(
+                str(data).encode('utf-8'),
+                encoder=Base64Encoder
+            ).decode('utf-8')
+        except CryptoError:
+            return None
 
 
 def generate_salt() -> str:
