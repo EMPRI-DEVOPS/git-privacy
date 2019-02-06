@@ -224,11 +224,28 @@ def do_redate(ctx, only_head):
 @click.pass_context
 def do_check(ctx):
     """Check for timezone change since last commit."""
-    if not ctx.obj.repo.head.is_valid():
+    repo = ctx.obj.repo
+    if not repo.head.is_valid():
         return  # no previous commits
-    last_commit = ctx.obj.repo.head.commit
+    with repo.config_reader() as cr:
+        user_email = cr.get_value("user", "email", "")
+    if not user_email:
+        click.echo("No user email set.", err=True)
+        ctx.exit(128)
+    user_commits = repo.iter_commits(
+        author=f"<{user_email}>",
+        committer=f"<{user_email}>",
+    )
+    last_commit = next(user_commits, None)
+    if last_commit is None:
+        return  # no previous commits by this user
     current_tz = datetime.now(timezone.utc).astimezone().tzinfo
-    last_tz = last_commit.authored_datetime.tzinfo
+    if last_commit.author.email == user_email:
+        last_tz = last_commit.authored_datetime.tzinfo
+    elif last_commit.committer.email == user_email:
+        last_tz = last_commit.committed_datetime.tzinfo
+    else:
+        raise RuntimeError("Unexpected commit.")
     dummy_date = datetime.now()
     if last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date):
         click.echo("Warning: Your timezone has changed.", err=True)

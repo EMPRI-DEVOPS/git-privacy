@@ -210,6 +210,23 @@ class TestGitPrivacy(unittest.TestCase):
             with self.assertRaises(git.GitCommandError):
                 self.addCommit("b")
 
+    def test_checkdifferentusers(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            os.environ['TZ'] = 'Europe/London'
+            time.tzset()
+            self.git.config(["user.email", "doe@example.com"])
+            a = self.addCommit("a")
+            os.environ['TZ'] = 'Europe/Berlin'
+            time.tzset()
+            result = self.invoke('check')
+            self.assertEqual(result.exit_code, 2)
+            self.git.config(["user.email", "johndoe@example.com"])
+            result = self.invoke('check')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output, "")
+
     def test_encryptdates(self):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
