@@ -121,6 +121,40 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertNotEqual(a, ar)
             self.assertNotEqual(a.authored_date, ar.authored_date)
 
+    def test_redatefromstartpoint(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            a = self.addCommit("a")
+            self.git.checkout(["-b", "abranch"])
+            b = self.addCommit("b")
+            c = self.addCommit("c")
+            result = self.invoke('redate master')
+            self.assertEqual(result.exit_code, 0)
+            ar = self.repo.commit("HEAD~2")
+            br = self.repo.commit("HEAD~1")
+            cr = self.repo.commit("HEAD")
+            self.assertEqual(a, ar)
+            self.assertNotEqual(b, br)
+            self.assertNotEqual(c, cr)
+
+    def test_redatewrongstartpoint(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            a = self.addCommit("a")
+            result = self.invoke('redate abc')
+            self.assertEqual(result.exit_code, 128)
+
+    def test_redatestartpointhead(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            a = self.addCommit("a")
+            b = self.addCommit("b")
+            result = self.invoke('redate HEAD')
+            self.assertEqual(result.exit_code, 128)
+
     def test_init(self):
         with self.runner.isolated_filesystem():
             self.setUpRepo()

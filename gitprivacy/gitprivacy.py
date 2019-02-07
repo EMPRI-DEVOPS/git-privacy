@@ -172,20 +172,36 @@ def _decrypt_from_msg(crypto, message: str) -> Optional[Tuple[datetime, datetime
 
 
 @cli.command('redate')
+@click.argument('startpoint', required=False, default='')
 @click.option('--only-head', is_flag=True,
               help="Redate only the current head.")
 @click.pass_context
-def do_redate(ctx, only_head):
+def do_redate(ctx, startpoint, only_head):
     """Redact timestamps of existing commits."""
     assertCommits(ctx)
     repo = ctx.obj.repo
     time_manager = ctx.obj.get_timestamp()
     crypto = ctx.obj.get_crypto()
 
-    commits = list(repo.iter_commits())
-    first_commit = len(commits) == 1
     if only_head:
-        commits = commits[0:1]
+        startpoint = "HEAD~1"
+    single_commit = next(repo.head.commit.iter_parents(), None) is None
+    try:
+        if startpoint and not single_commit:
+            rev = f"{startpoint}..HEAD"
+        else:
+            rev = "HEAD"
+            # Enforce validity of user-defined startpoint
+            # to give proper feedback
+            if not only_head:
+                repo.commit(startpoint)
+        commits = list(repo.iter_commits(rev))
+    except (git.GitCommandError, git.BadName):
+        click.echo(f"bad revision '{startpoint}'", err=True)
+        ctx.exit(128)
+    if len(commits) == 0:
+        click.echo(f"Found nothing to redate for '{rev}'", err=True)
+        ctx.exit(128)
     env_cmd = ""
     msg_cmd = ""
     with click.progressbar(commits,
@@ -216,7 +232,7 @@ def do_redate(ctx, only_head):
                   "--env-filter", env_cmd,
                   "--msg-filter", msg_cmd,
                   "--",
-                  "HEAD" if not only_head or first_commit else "HEAD~1..HEAD"]
+                  rev]
     repo.git.execute(command=filter_cmd)
 
 
