@@ -156,7 +156,7 @@ def _extract_enc_dates(msg: str) -> Optional[str]:
 
 
 def _encrypt_for_msg(crypto, a_date: datetime, c_date: datetime) -> str:
-    plain = f"{a_date.isoformat()};{c_date.isoformat()}"
+    plain = ";".join(d.strftime("%s %z") for d in (a_date, c_date))
     return crypto.encrypt(plain)
 
 
@@ -167,8 +167,15 @@ def _decrypt_from_msg(crypto, message: str) -> Optional[Tuple[datetime, datetime
     plain_dates = crypto.decrypt(enc_dates)
     if plain_dates is None:
         return None
-    a_date, c_date = [datetime.fromisoformat(d) for d in plain_dates.split(";")]
+    a_date, c_date = [_strptime(d) for d in plain_dates.split(";")]
     return a_date, c_date
+
+def _strptime(string: str):
+    seconds, tz = string.split()
+    return datetime.fromtimestamp(
+        int(seconds),
+        datetime.strptime(tz, "%z").tzinfo,
+    )
 
 
 @cli.command('redate')
