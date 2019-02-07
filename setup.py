@@ -17,7 +17,7 @@ setup(
     license="BSD",
     packages=find_packages(exclude=('tests', 'docs')),
     include_package_data=True,
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     install_requires=[
         'click>=7',
         'gitpython',
@@ -32,7 +32,6 @@ setup(
         "Topic :: Software Development :: Version Control :: Git",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3 :: Only",
-        "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: BSD License",
