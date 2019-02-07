@@ -149,7 +149,7 @@ def do_log(ctx):
 def _extract_enc_dates(msg: str) -> Optional[str]:
     """Extract encrypted dates from the commit message"""
     for line in msg.splitlines():
-        match = re.search(f'^{MSG_TAG}(\S+)', line)
+        match = re.search(fr'^{MSG_TAG}(\S+)', line)
         if match:
             return match.group(1)
     return None
