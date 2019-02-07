@@ -1,6 +1,7 @@
 import click
 from click.testing import CliRunner
 import git
+import locale
 import os
 import time
 import unittest
@@ -16,6 +17,13 @@ class TestGitPrivacy(unittest.TestCase):
         self.git = git.Git()
         self.git.init()
         self.repo = git.Repo()
+        # Prevent gitpython from forcing locales to ascii
+        lc, code = locale.getlocale()
+        if lc and code:
+            lc_str = f"{lc}.{code}"
+        else:
+            lc_str = "C.UTF-8"
+        self.git.update_environment(LANG=lc_str, LC_ALL=lc_str)
 
     def setConfig(self) -> None:
         self.git.config(["privacy.pattern", "m,s"])
