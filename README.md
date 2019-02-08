@@ -69,6 +69,17 @@ To redact and redate all commits of the currently active branch run:
 **WARNING:** This will completely rewrite the history and will lead to
 diverging commit histories.
 
+### Re-dating of Commits from a Startpoint
+
+You can also limit the redate to all commits that succeed a given startpoint:
+
+    git-privacy redate <startpoint>
+
+This will redate all commits in the range `<startpoint>..HEAD` (see git rev-list for syntax details).
+
+For example, you can use this to redate all commits of branch since it has been branched from `master` by invoking:
+
+    git-privacy redate master
 
 ## Optional: Timezone Change Warnings
 
