@@ -25,6 +25,10 @@ class TestGitPrivacy(unittest.TestCase):
             lc_str = "C.UTF-8"
         self.git.update_environment(LANG=lc_str, LC_ALL=lc_str)
 
+    def setUpRemote(self) -> None:
+        r = git.Repo.init("remote", mkdir=True, bare=True)
+        self.remote = self.repo.create_remote("origin", r.working_dir)
+
     def setConfig(self) -> None:
         self.git.config(["privacy.pattern", "m,s"])
 
@@ -162,6 +166,25 @@ class TestGitPrivacy(unittest.TestCase):
             b = self.addCommit("b")
             result = self.invoke('redate HEAD')
             self.assertEqual(result.exit_code, 128)
+
+    def test_redatewithremote(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setUpRemote()
+            self.setConfig()
+            a = self.addCommit("a")
+            self.remote.push(self.repo.active_branch, set_upstream=True)
+            result = self.invoke('redate')
+            self.assertEqual(result.exit_code, 3)
+            result = self.invoke('redate -f')
+            self.assertEqual(result.exit_code, 0)
+            self.remote.push(force=True)
+            b = self.addCommit("b")
+            c = self.addCommit("c")
+            result = self.invoke('redate')
+            self.assertEqual(result.exit_code, 3)
+            result = self.invoke('redate HEAD~2')
+            self.assertEqual(result.exit_code, 0)
 
     def test_init(self):
         with self.runner.isolated_filesystem():

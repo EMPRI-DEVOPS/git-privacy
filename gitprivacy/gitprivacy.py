@@ -182,8 +182,10 @@ def _strptime(string: str):
 @click.argument('startpoint', required=False, default='')
 @click.option('--only-head', is_flag=True,
               help="Redate only the current head.")
+@click.option('-f', '--force', is_flag=True,
+              help="Force redate of commits.")
 @click.pass_context
-def do_redate(ctx, startpoint, only_head):
+def do_redate(ctx, startpoint, only_head, force):
     """Redact timestamps of existing commits."""
     assertCommits(ctx)
     repo = ctx.obj.repo
@@ -209,6 +211,14 @@ def do_redate(ctx, startpoint, only_head):
     if len(commits) == 0:
         click.echo(f"Found nothing to redate for '{rev}'", err=True)
         ctx.exit(128)
+    remotes = repo.git.branch(["-r", "--contains", commits[-1].hexsha])
+    if remotes and not force:
+        click.echo(
+            "You are trying to redate commits contained in remote branches.\n"
+            "Use '-f' to proceed if you are really sure.",
+            err=True
+        )
+        ctx.exit(3)
     env_cmd = ""
     msg_cmd = ""
     with click.progressbar(commits,
