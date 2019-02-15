@@ -65,6 +65,17 @@ class TestGitPrivacy(unittest.TestCase):
             result = self.invoke('log')
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output.count("commit"), 2)
+            result = self.invoke('log a')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output.count("commit"), 1)
+            result = self.invoke('log -r HEAD~1..HEAD')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output.count("commit"), 1)
+            result = self.invoke('log -r HEAD~1..HEAD -- a')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output.count("commit"), 0)
+            result = self.invoke('log x')
+            self.assertEqual(result.exit_code, 2)
 
     def test_redateempty(self):
         with self.runner.isolated_filesystem():

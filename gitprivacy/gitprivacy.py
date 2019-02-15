@@ -123,14 +123,17 @@ def copy_hook(repo: git.Repo, hook: str) -> None:
 
 
 @cli.command('log')
+@click.option('-r', '--revision-range', required=False, default='HEAD',
+              help="Show only commits in the specified revision range.")
+@click.argument('paths', nargs=-1, type=click.Path(exists=True))
 @click.pass_context
-def do_log(ctx):
+def do_log(ctx, revision_range, paths):
     """Display a git-log-like history."""
     assertCommits(ctx)
     tm = timestamp.TimeStamp()
     repo = ctx.obj.repo
     crypto = ctx.obj.get_crypto()
-    commit_list = list(repo.iter_commits())
+    commit_list = list(repo.iter_commits(rev=revision_range, paths=paths))
     buf = list()
     for commit in commit_list:
         buf.append(click.style(f"commit {commit.hexsha}", fg='yellow'))
