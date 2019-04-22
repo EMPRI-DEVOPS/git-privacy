@@ -300,6 +300,9 @@ GHNOREPLY = "{username}@users.noreply.github.com"
 @click.pass_context
 def redact_email(ctx, addresses: List[str], replacement: str) -> None:
     """Redact email addresses from existing commits."""
+    if not addresses:
+        return  # nothing to do
+
     assertCommits(ctx)
     repo = ctx.obj.repo
 
