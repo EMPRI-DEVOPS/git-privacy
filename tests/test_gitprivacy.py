@@ -332,5 +332,24 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertFalse("RealDate" in result.output)
 
 
+    def test_redactemail(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            email = "privat@example.com"
+            self.git.config(["user.email", email])
+            a = self.addCommit("a")
+            self.assertEqual(a.author.email, email)
+            result = self.invoke(f'redact-email {email}')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output, "")
+            result = self.invoke('log')
+            self.assertEqual(result.exit_code, 0)
+            self.assertFalse(email in result.output)
+            commit = self.repo.head.commit
+            self.assertNotEqual(commit.author.email, email)
+            self.assertNotEqual(commit.committer.email, email)
+
+
 if __name__ == '__main__':
     unittest.main()

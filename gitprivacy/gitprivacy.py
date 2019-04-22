@@ -8,7 +8,7 @@ import os
 import re
 import stat
 import sys
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 import configparser
 import git
 from . import timestamp
@@ -287,3 +287,36 @@ def do_check(ctx):
         click.echo("Warning: Your timezone has changed.", err=True)
         if not ctx.obj.ignoreTimezone:
             ctx.exit(2)
+
+
+GHNOREPLY = "{username}@users.noreply.github.com"
+
+
+@cli.command('redact-email')
+@click.argument('addresses', nargs=-1, type=str)
+@click.option('-r', '--replacement', type=str,
+              default="noreply@gitprivacy.invalid",
+              help="Email address used as replacement.")
+@click.pass_context
+def redact_email(ctx, addresses: List[str], replacement: str) -> None:
+    """Redact email addresses from existing commits."""
+    assertCommits(ctx)
+    repo = ctx.obj.repo
+
+    env_cmd = ""
+    with click.progressbar(addresses,
+                           label="Redacting emails") as bar:
+        for address in bar:
+            env_cmd += (
+                f"if test \"$GIT_COMMITTER_EMAIL\" = \"{address}\"; then "
+                f"export GIT_COMMITTER_EMAIL=\"{replacement}\"; "
+                "fi; "
+                f"if test \"$GIT_AUTHOR_EMAIL\" = \"{address}\"; then "
+                f"export GIT_AUTHOR_EMAIL=\"{replacement}\"; "
+                "fi; "
+            )
+    filter_cmd = ["git", "filter-branch", "-f",
+                  "--env-filter", env_cmd,
+                  "--",
+                  "HEAD"]
+    repo.git.execute(command=filter_cmd)
