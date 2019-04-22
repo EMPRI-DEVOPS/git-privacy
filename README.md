@@ -88,3 +88,19 @@ To do so simply execute:
 
     git-privacy init --enable-check
 
+
+## Email Address Redaction
+
+Imagine you want to publish a repository which contains some contributor's private email addresses.
+Git-privacy makes it easy to redact such addresses:
+
+    git-privacy redact-email john@example.com paul@example.net
+
+You can also specify individual substitutes:
+
+    git-privacy redact-email john@example.com:john@bigfirm.invalid
+
+Or, you can use your GitHub username and GitHub's [noreply addresses](https://help.github.com/en/articles/about-commit-email-addresses) to still have your commit associated to account and get credit:
+
+    git-privacy redact-email -g john@example.com:john
+
