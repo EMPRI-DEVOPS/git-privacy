@@ -289,8 +289,6 @@ def do_check(ctx):
             ctx.exit(2)
 
 
-GHNOREPLY = "{username}@users.noreply.github.com"
-
 class EmailRedactParamType(click.ParamType):
     name = 'emailredact'
 
@@ -306,6 +304,7 @@ class EmailRedactParamType(click.ParamType):
 
 
 EMAIL_REDACT = EmailRedactParamType()
+GHNOREPLY = "{username}@users.noreply.github.com"
 
 
 @cli.command('redact-email')
@@ -313,8 +312,12 @@ EMAIL_REDACT = EmailRedactParamType()
 @click.option('-r', '--replacement', type=str,
               default="noreply@gitprivacy.invalid",
               help="Email address used as replacement.")
+@click.option('-g', '--use-github-noreply', 'use_ghnoreply', is_flag=True,
+              help="Interpret custom replacements as GitHub usernames"
+                   " and construct noreply addresses.")
 @click.pass_context
-def redact_email(ctx, addresses: List[str], replacement: str) -> None:
+def redact_email(ctx, addresses: List[str], replacement: str,
+                 use_ghnoreply: bool) -> None:
     """Redact email addresses from existing commits."""
     if not addresses:
         return  # nothing to do
@@ -326,6 +329,8 @@ def redact_email(ctx, addresses: List[str], replacement: str) -> None:
     with click.progressbar(addresses,
                            label="Redacting emails") as bar:
         for old, new in bar:
+            if new and use_ghnoreply:
+                new = GHNOREPLY.format(username=new)
             if not new:
                 new = replacement
             env_cmd += (
