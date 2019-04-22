@@ -291,9 +291,25 @@ def do_check(ctx):
 
 GHNOREPLY = "{username}@users.noreply.github.com"
 
+class EmailRedactParamType(click.ParamType):
+    name = 'emailredact'
+
+    def convert(self, value, param, ctx):
+        if ":" in value:
+            try:
+                old, new = value.split(":")
+                return (old, new)
+            except ValueError:
+                self.fail('%s is not in the format old-email[:new-email]' % value, param, ctx)
+        else:
+            return (value, "")
+
+
+EMAIL_REDACT = EmailRedactParamType()
+
 
 @cli.command('redact-email')
-@click.argument('addresses', nargs=-1, type=str)
+@click.argument('addresses', nargs=-1, type=EMAIL_REDACT)
 @click.option('-r', '--replacement', type=str,
               default="noreply@gitprivacy.invalid",
               help="Email address used as replacement.")
@@ -309,13 +325,15 @@ def redact_email(ctx, addresses: List[str], replacement: str) -> None:
     env_cmd = ""
     with click.progressbar(addresses,
                            label="Redacting emails") as bar:
-        for address in bar:
+        for old, new in bar:
+            if not new:
+                new = replacement
             env_cmd += (
-                f"if test \"$GIT_COMMITTER_EMAIL\" = \"{address}\"; then "
-                f"export GIT_COMMITTER_EMAIL=\"{replacement}\"; "
+                f"if test \"$GIT_COMMITTER_EMAIL\" = \"{old}\"; then "
+                f"export GIT_COMMITTER_EMAIL=\"{new}\"; "
                 "fi; "
-                f"if test \"$GIT_AUTHOR_EMAIL\" = \"{address}\"; then "
-                f"export GIT_AUTHOR_EMAIL=\"{replacement}\"; "
+                f"if test \"$GIT_AUTHOR_EMAIL\" = \"{old}\"; then "
+                f"export GIT_AUTHOR_EMAIL=\"{new}\"; "
                 "fi; "
             )
     filter_cmd = ["git", "filter-branch", "-f",

@@ -354,5 +354,28 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertNotEqual(commit.committer.email, email)
 
 
+    def test_redactemailcustomreplacement(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            email = "privat@example.com"
+            repl = "public@example.com"
+            self.git.config(["user.email", email])
+            a = self.addCommit("a")
+            self.assertEqual(a.author.email, email)
+            result = self.invoke(f'redact-email {email}:{repl}:baz')
+            self.assertEqual(result.exit_code, 2)
+            result = self.invoke(f'redact-email {email}:{repl}')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output, "")
+            result = self.invoke('log')
+            self.assertEqual(result.exit_code, 0)
+            self.assertFalse(email in result.output)
+            self.assertTrue(repl in result.output)
+            commit = self.repo.head.commit
+            self.assertEqual(commit.author.email, repl)
+            self.assertEqual(commit.committer.email, repl)
+
+
 if __name__ == '__main__':
     unittest.main()
