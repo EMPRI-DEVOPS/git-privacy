@@ -1,13 +1,15 @@
 from base64 import b64encode, b64decode
-import sys
 from typing import Optional
 
 from nacl import pwhash, secret, utils
 from nacl.encoding import Base64Encoder
 from nacl.exceptions import CryptoError
 
+from . import EncryptionProvider
 
-class Crypto():
+
+class PasswordSecretBox(EncryptionProvider):
+    """NaCl SecretBox with secret derived from password."""
     def __init__(self, salt: str, password: str) -> None:
         enckey = pwhash.scrypt.kdf(
             secret.SecretBox.KEY_SIZE,
@@ -34,7 +36,7 @@ class Crypto():
         except CryptoError:
             return None
 
-
-def generate_salt() -> str:
-    """Generate and return base64-encoded salt."""
-    return b64encode(utils.random(pwhash.scrypt.SALTBYTES)).decode('utf-8')
+    @staticmethod
+    def generate_salt() -> str:
+        """Generate and return base64-encoded salt."""
+        return b64encode(utils.random(pwhash.scrypt.SALTBYTES)).decode('utf-8')

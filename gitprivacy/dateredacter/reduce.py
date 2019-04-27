@@ -3,12 +3,11 @@ import re
 import time
 from typing import List, Tuple
 
+from . import DateRedacter
 
-DATE_FMT = "%a %b %d %H:%M:%S %Y %z"
 
-
-class TimeStamp:
-    """ Class for dealing with git timestamps"""
+class ResolutionDateRedacter(DateRedacter):
+    """Resolution reducing timestamp redacter."""
     def __init__(self, pattern="s", limit=None, mode="reduce"):
         self.mode = mode
         self.pattern = pattern
@@ -20,11 +19,7 @@ class TimeStamp:
             except AttributeError as e:
                 raise ValueError("Unexpected syntax for limit.")
 
-    @staticmethod
-    def to_string(timestamp: datetime) -> str:
-        return timestamp.strftime(DATE_FMT)
-
-    def reduce(self, timestamp: datetime) -> datetime:
+    def redact(self, timestamp: datetime) -> datetime:
         """Reduces timestamp precision for the parts specifed by the pattern using
         M: month, d: day, h: hour, m: minute, s: second.
 
@@ -40,10 +35,10 @@ class TimeStamp:
             timestamp = timestamp.replace(minute=0)
         if "s" in self.pattern:
             timestamp = timestamp.replace(second=0)
-        timestamp = self.enforce_limit(timestamp)
+        timestamp = self._enforce_limit(timestamp)
         return timestamp
 
-    def enforce_limit(self, timestamp: datetime) -> datetime:
+    def _enforce_limit(self, timestamp: datetime) -> datetime:
         if not self.limit:
             return timestamp
         start, end = self.limit

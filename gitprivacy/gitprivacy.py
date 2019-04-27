@@ -11,11 +11,12 @@ import sys
 from typing import List, Optional, Tuple
 import configparser
 import git
-from . import timestamp
-from . import crypto
 
-
-MSG_TAG = "GitPrivacy: "
+from .crypto import EncryptionProvider, PasswordSecretBox
+from .dateredacter import DateRedacter, ResolutionDateRedacter
+from .encoder import BasicEncoder, MessageEmbeddingEncoder
+from .rewriter import FilterBranchRewriter
+from .utils import fmtdate
 
 
 class GitPrivacyConfig(object):
@@ -35,15 +36,16 @@ class GitPrivacyConfig(object):
             self.ignoreTimezone = bool(config.get_value(self.SECTION,
                                                         'ignoreTimezone', False))
 
-    def get_crypto(self) -> Optional[crypto.Crypto]:
+    def get_crypto(self) -> Optional[EncryptionProvider]:
         if not self.password:
             return None
         elif self.password and not self.salt:
-            self.salt = crypto.generate_salt()
+            self.salt = PasswordSecretBox.generate_salt()
             self.write_config(salt=self.salt)
-        return crypto.Crypto(self.salt, str(self.password))
+        return PasswordSecretBox(self.salt, str(self.password))
 
-    def get_timestamp(self) -> timestamp.TimeStamp:
+
+    def get_dateredacter(self) -> DateRedacter:
         if self.mode == "reduce" and self.pattern == '':
             raise click.UsageError(click.wrap_text(
                 "Missing pattern configuration. Set a reduction pattern using\n"
@@ -54,9 +56,7 @@ class GitPrivacyConfig(object):
                 "following time unit identifiers: "
                 "M: month, d: day, h: hour, m: minute, s: second.",
                 preserve_paragraphs=True))
-        return timestamp.TimeStamp(self.pattern, self.limit, self.mode)
-
-
+        return ResolutionDateRedacter(self.pattern, self.limit, self.mode)
 
 
     def write_config(self, **kwargs):
@@ -130,55 +130,27 @@ def copy_hook(repo: git.Repo, hook: str) -> None:
 def do_log(ctx, revision_range, paths):
     """Display a git-log-like history."""
     assertCommits(ctx)
-    tm = timestamp.TimeStamp()
     repo = ctx.obj.repo
+    redacter = ResolutionDateRedacter()
     crypto = ctx.obj.get_crypto()
+    if crypto:
+        encoder = MessageEmbeddingEncoder(redacter, crypto)
+    else:
+        encoder = BasicEncoder(redacter)
     commit_list = list(repo.iter_commits(rev=revision_range, paths=paths))
     buf = list()
     for commit in commit_list:
         buf.append(click.style(f"commit {commit.hexsha}", fg='yellow'))
-        buf.append(f"Author:\t\t{commit.author.name} <{commit.author.email}>")
-        orig_dates = _decrypt_from_msg(crypto, commit.message)
-        if orig_dates is not None:
-            a_date, c_date = orig_dates
-            buf.append(click.style(f"Date:\t\t{tm.to_string(commit.authored_datetime)}", fg='red'))
-            buf.append(click.style(f"RealDate:\t{tm.to_string(a_date)}", fg='green'))
+        a_date, c_date = encoder.decode(commit)
+        if a_date != commit.authored_datetime:
+            buf.append(f"Author:   {commit.author.name} <{commit.author.email}>")
+            buf.append(click.style(f"Date:     {fmtdate(commit.authored_datetime)}", fg='red'))
+            buf.append(click.style(f"RealDate: {fmtdate(a_date)}", fg='green'))
         else:
-            buf.append(f"Date:\t\t{tm.to_string(commit.authored_datetime)}")
+            buf.append(f"Author: {commit.author.name} <{commit.author.email}>")
+            buf.append(f"Date:   {fmtdate(commit.authored_datetime)}")
         buf.append(os.linesep + f"    {commit.message}")
     click.echo_via_pager(os.linesep.join(buf))
-
-
-def _extract_enc_dates(msg: str) -> Optional[str]:
-    """Extract encrypted dates from the commit message"""
-    for line in msg.splitlines():
-        match = re.search(fr'^{MSG_TAG}(\S+)', line)
-        if match:
-            return match.group(1)
-    return None
-
-
-def _encrypt_for_msg(crypto, a_date: datetime, c_date: datetime) -> str:
-    plain = ";".join(d.strftime("%s %z") for d in (a_date, c_date))
-    return crypto.encrypt(plain)
-
-
-def _decrypt_from_msg(crypto, message: str) -> Optional[Tuple[datetime, datetime]]:
-    enc_dates = _extract_enc_dates(message)
-    if crypto is None or enc_dates is None:
-        return None
-    plain_dates = crypto.decrypt(enc_dates)
-    if plain_dates is None:
-        return None
-    a_date, c_date = [_strptime(d) for d in plain_dates.split(";")]
-    return a_date, c_date
-
-def _strptime(string: str):
-    seconds, tz = string.split()
-    return datetime.fromtimestamp(
-        int(seconds),
-        datetime.strptime(tz, "%z").tzinfo,
-    )
 
 
 @cli.command('redate')
@@ -192,8 +164,13 @@ def do_redate(ctx, startpoint, only_head, force):
     """Redact timestamps of existing commits."""
     assertCommits(ctx)
     repo = ctx.obj.repo
-    time_manager = ctx.obj.get_timestamp()
+    redacter = ctx.obj.get_dateredacter()
     crypto = ctx.obj.get_crypto()
+    if crypto:
+        encoder = MessageEmbeddingEncoder(redacter, crypto)
+    else:
+        encoder = BasicEncoder(redacter)
+    rewriter = FilterBranchRewriter(repo, encoder)
 
     if only_head:
         startpoint = "HEAD~1"
@@ -222,38 +199,10 @@ def do_redate(ctx, startpoint, only_head, force):
             err=True
         )
         ctx.exit(3)
-    env_cmd = ""
-    msg_cmd = ""
-    with click.progressbar(commits,
-                           label="Redating commits") as bar:
+    with click.progressbar(commits, label="Redating commits") as bar:
         for commit in bar:
-            a_redacted = time_manager.reduce(commit.authored_datetime)
-            c_redacted = time_manager.reduce(commit.committed_datetime)
-            env_cmd += (
-                f"if test \"$GIT_COMMIT\" = \"{commit.hexsha}\"; then "
-                f"export GIT_AUTHOR_DATE=\"{a_redacted}\"; "
-                f"export GIT_COMMITTER_DATE=\"{c_redacted}\"; fi; "
-            )
-            # Only add encrypted dates to commit message if none are present
-            # already. Keep the original ones else.
-            keep_msg = any([line.startswith(MSG_TAG)
-                            for line in commit.message.splitlines()])
-            if keep_msg or crypto is None:
-                append_cmd = ""
-            else:
-                enc_dates = _encrypt_for_msg(crypto, commit.authored_datetime,
-                                             commit.committed_datetime)
-                append_cmd = f"&& echo && echo \"{MSG_TAG}{enc_dates}\""
-            msg_cmd += (
-                f"if test \"$GIT_COMMIT\" = \"{commit.hexsha}\"; then "
-                f"cat {append_cmd}; fi; "
-            )
-    filter_cmd = ["git", "filter-branch", "-f",
-                  "--env-filter", env_cmd,
-                  "--msg-filter", msg_cmd,
-                  "--",
-                  rev]
-    repo.git.execute(command=filter_cmd)
+            rewriter.update(commit)
+    rewriter.finish(rev)
 
 
 @cli.command('check')
