@@ -8,4 +8,5 @@ class Rewriter(abc.ABC):
     pass
 
 
+from .amendrewriter import AmendRewriter
 from .filterrewriter import FilterBranchRewriter

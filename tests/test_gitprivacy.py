@@ -144,6 +144,24 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertNotEqual(a, ar)
             self.assertNotEqual(a.authored_date, ar.authored_date)
 
+    def test_redateheadwithunstagedchanges(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            a = self.addCommit("a")
+            with open("a", "w") as f:
+                f.write("unstagedchange")
+            # redate should fail on dirty WD
+            result = self.invoke('redate')
+            self.assertEqual(result.exit_code, 1)
+            # head-only redating should work
+            result = self.invoke('redate --only-head')
+            self.assertEqual(result.exception, None)
+            self.assertEqual(result.exit_code, 0)
+            ar = self.repo.commit("HEAD")
+            self.assertNotEqual(a, ar)
+            self.assertNotEqual(a.authored_date, ar.authored_date)
+
     def test_redatefromstartpoint(self):
         with self.runner.isolated_filesystem():
             self.setUpRepo()

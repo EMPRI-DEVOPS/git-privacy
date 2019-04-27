@@ -15,7 +15,7 @@ import git
 from .crypto import EncryptionProvider, PasswordSecretBox
 from .dateredacter import DateRedacter, ResolutionDateRedacter
 from .encoder import BasicEncoder, MessageEmbeddingEncoder
-from .rewriter import FilterBranchRewriter
+from .rewriter import AmendRewriter, FilterBranchRewriter
 from .utils import fmtdate
 
 
@@ -170,10 +170,18 @@ def do_redate(ctx, startpoint, only_head, force):
         encoder = MessageEmbeddingEncoder(redacter, crypto)
     else:
         encoder = BasicEncoder(redacter)
-    rewriter = FilterBranchRewriter(repo, encoder)
 
-    if only_head:
-        startpoint = "HEAD~1"
+    if only_head:  # use AmendRewriter to allow redates in dirty dirs
+        rewriter = AmendRewriter(repo, encoder)
+        if rewriter.is_already_active():
+            return  # avoid cyclic invocation by post-commit hook
+        rewriter.rewrite()
+        return
+
+    if repo.is_dirty():
+        click.echo(f"Cannot redate: You have unstaged changes.", err=True)
+        ctx.exit(1)
+    rewriter = FilterBranchRewriter(repo, encoder)
     single_commit = next(repo.head.commit.iter_parents(), None) is None
     try:
         if startpoint and not single_commit:
@@ -182,8 +190,7 @@ def do_redate(ctx, startpoint, only_head, force):
             rev = "HEAD"
             # Enforce validity of user-defined startpoint
             # to give proper feedback
-            if not only_head:
-                repo.commit(startpoint)
+            repo.commit(startpoint)
         commits = list(repo.iter_commits(rev))
     except (git.GitCommandError, git.BadName):
         click.echo(f"bad revision '{startpoint}'", err=True)
