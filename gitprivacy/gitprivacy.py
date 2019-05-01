@@ -12,6 +12,7 @@ from typing import List, Optional, Tuple
 import configparser
 import git
 
+from .cli.utils import assertCommits
 from .crypto import EncryptionProvider, PasswordSecretBox
 from .dateredacter import DateRedacter, ResolutionDateRedacter
 from .encoder import BasicEncoder, MessageEmbeddingEncoder
@@ -71,27 +72,15 @@ class GitPrivacyConfig(object):
               type=click.Path(exists=True, file_okay=False, dir_okay=True, readable=True),
               help="Path to your Git repsitory.")
 @click.pass_context
-def cli(ctx, gitdir):
+def cli(ctx: click.Context, gitdir):
     ctx.obj = GitPrivacyConfig(gitdir)
-
-
-def assertCommits(ctx: click.Context) -> None:
-    """Assert that the current ref has commits."""
-    head = ctx.obj.repo.head
-    if not head.is_valid():
-        click.echo(
-            f"fatal: your current branch '{head.ref.name}' "
-            "does not have any commits yet",
-            err=True
-        )
-        ctx.exit(128)  # Same exit-code as used by git
 
 
 @cli.command('init')
 @click.option('-c', '--enable-check', is_flag=True,
               help="Enable execution of 'check' before committing.")
 @click.pass_context
-def do_init(ctx, enable_check):
+def do_init(ctx: click.Context, enable_check):
     """Init git-privacy for this repository."""
     repo = ctx.obj.repo
     copy_hook(repo, "post-commit")
@@ -127,7 +116,7 @@ def copy_hook(repo: git.Repo, hook: str) -> None:
               help="Show only commits in the specified revision range.")
 @click.argument('paths', nargs=-1, type=click.Path(exists=True))
 @click.pass_context
-def do_log(ctx, revision_range, paths):
+def do_log(ctx: click.Context, revision_range, paths):
     """Display a git-log-like history."""
     assertCommits(ctx)
     repo = ctx.obj.repo
@@ -160,7 +149,7 @@ def do_log(ctx, revision_range, paths):
 @click.option('-f', '--force', is_flag=True,
               help="Force redate of commits.")
 @click.pass_context
-def do_redate(ctx, startpoint, only_head, force):
+def do_redate(ctx: click.Context, startpoint, only_head, force):
     """Redact timestamps of existing commits."""
     assertCommits(ctx)
     repo = ctx.obj.repo
@@ -214,7 +203,7 @@ def do_redate(ctx, startpoint, only_head, force):
 
 @cli.command('check')
 @click.pass_context
-def do_check(ctx):
+def do_check(ctx: click.Context):
     """Check for timezone change since last commit."""
     repo = ctx.obj.repo
     if not repo.head.is_valid():
@@ -245,60 +234,5 @@ def do_check(ctx):
             ctx.exit(2)
 
 
-class EmailRedactParamType(click.ParamType):
-    name = 'emailredact'
-
-    def convert(self, value, param, ctx):
-        if ":" in value:
-            try:
-                old, new = value.split(":")
-                return (old, new)
-            except ValueError:
-                self.fail('%s is not in the format old-email[:new-email]' % value, param, ctx)
-        else:
-            return (value, "")
-
-
-EMAIL_REDACT = EmailRedactParamType()
-GHNOREPLY = "{username}@users.noreply.github.com"
-
-
-@cli.command('redact-email')
-@click.argument('addresses', nargs=-1, type=EMAIL_REDACT)
-@click.option('-r', '--replacement', type=str,
-              default="noreply@gitprivacy.invalid",
-              help="Email address used as replacement.")
-@click.option('-g', '--use-github-noreply', 'use_ghnoreply', is_flag=True,
-              help="Interpret custom replacements as GitHub usernames"
-                   " and construct noreply addresses.")
-@click.pass_context
-def redact_email(ctx, addresses: List[str], replacement: str,
-                 use_ghnoreply: bool) -> None:
-    """Redact email addresses from existing commits."""
-    if not addresses:
-        return  # nothing to do
-
-    assertCommits(ctx)
-    repo = ctx.obj.repo
-
-    env_cmd = ""
-    with click.progressbar(addresses,
-                           label="Redacting emails") as bar:
-        for old, new in bar:
-            if new and use_ghnoreply:
-                new = GHNOREPLY.format(username=new)
-            if not new:
-                new = replacement
-            env_cmd += (
-                f"if test \"$GIT_COMMITTER_EMAIL\" = \"{old}\"; then "
-                f"export GIT_COMMITTER_EMAIL=\"{new}\"; "
-                "fi; "
-                f"if test \"$GIT_AUTHOR_EMAIL\" = \"{old}\"; then "
-                f"export GIT_AUTHOR_EMAIL=\"{new}\"; "
-                "fi; "
-            )
-    filter_cmd = ["git", "filter-branch", "-f",
-                  "--env-filter", env_cmd,
-                  "--",
-                  "HEAD"]
-    repo.git.execute(command=filter_cmd)
+from .cli.email import redact_email
+cli.add_command(redact_email)
