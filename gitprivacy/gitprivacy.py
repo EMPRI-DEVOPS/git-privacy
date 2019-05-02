@@ -15,7 +15,7 @@ import git
 from .cli.utils import assertCommits
 from .crypto import EncryptionProvider, PasswordSecretBox
 from .dateredacter import DateRedacter, ResolutionDateRedacter
-from .encoder import BasicEncoder, MessageEmbeddingEncoder
+from .encoder import Encoder, BasicEncoder, MessageEmbeddingEncoder
 from .rewriter import AmendRewriter, FilterBranchRewriter
 from .utils import fmtdate
 
@@ -116,14 +116,14 @@ def copy_hook(repo: git.Repo, hook: str) -> None:
               help="Show only commits in the specified revision range.")
 @click.argument('paths', nargs=-1, type=click.Path(exists=True))
 @click.pass_context
-def do_log(ctx: click.Context, revision_range, paths):
+def do_log(ctx: click.Context, revision_range: str, paths: click.Path):
     """Display a git-log-like history."""
     assertCommits(ctx)
     repo = ctx.obj.repo
     redacter = ResolutionDateRedacter()
     crypto = ctx.obj.get_crypto()
     if crypto:
-        encoder = MessageEmbeddingEncoder(redacter, crypto)
+        encoder: Encoder = MessageEmbeddingEncoder(redacter, crypto)
     else:
         encoder = BasicEncoder(redacter)
     commit_list = list(repo.iter_commits(rev=revision_range, paths=paths))
@@ -149,22 +149,23 @@ def do_log(ctx: click.Context, revision_range, paths):
 @click.option('-f', '--force', is_flag=True,
               help="Force redate of commits.")
 @click.pass_context
-def do_redate(ctx: click.Context, startpoint, only_head, force):
+def do_redate(ctx: click.Context, startpoint: str,
+              only_head: bool, force: bool):
     """Redact timestamps of existing commits."""
     assertCommits(ctx)
     repo = ctx.obj.repo
     redacter = ctx.obj.get_dateredacter()
     crypto = ctx.obj.get_crypto()
     if crypto:
-        encoder = MessageEmbeddingEncoder(redacter, crypto)
+        encoder: Encoder = MessageEmbeddingEncoder(redacter, crypto)
     else:
         encoder = BasicEncoder(redacter)
 
     if only_head:  # use AmendRewriter to allow redates in dirty dirs
-        rewriter = AmendRewriter(repo, encoder)
-        if rewriter.is_already_active():
+        amendrewriter = AmendRewriter(repo, encoder)
+        if amendrewriter.is_already_active():
             return  # avoid cyclic invocation by post-commit hook
-        rewriter.rewrite()
+        amendrewriter.rewrite()
         return
 
     if repo.is_dirty():
@@ -228,7 +229,8 @@ def do_check(ctx: click.Context):
     else:
         raise RuntimeError("Unexpected commit.")
     dummy_date = datetime.now()
-    if last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date):
+    if (last_tz and current_tz
+        and last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date)):
         click.echo("Warning: Your timezone has changed.", err=True)
         if not ctx.obj.ignoreTimezone:
             ctx.exit(2)
