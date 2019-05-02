@@ -6,14 +6,14 @@ with open('README.md') as f:
 
 setup(
     name='gitprivacy',
-    version='1.2.0',
+    version='1.3.0',
     description='Git wrapper redacting author and committer dates.',
     long_description=README,
     long_description_content_type="text/markdown",
     keywords=["git", "privacy", "timestamps"],
     maintainer='Christian Burkert',
     maintainer_email='gitprivacy@cburkert.de',
-    url='https://github.com/cburkert/pyGitPrivacy',
+    url='https://github.com/EMPRI-DEVOPS/git-privacy',
     license="BSD",
     packages=find_packages(exclude=('tests', 'docs')),
     include_package_data=True,
