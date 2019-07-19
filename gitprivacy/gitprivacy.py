@@ -5,13 +5,12 @@ git privacy
 import click
 from datetime import datetime, timezone
 import os
-import re
 import stat
 import sys
-from typing import List, Optional, Tuple
-import configparser
-import git
+from typing import Optional
+import git  # type: ignore
 
+from .cli import email
 from .cli.utils import assertCommits
 from .crypto import EncryptionProvider, PasswordSecretBox
 from .dateredacter import DateRedacter, ResolutionDateRedacter
@@ -22,6 +21,7 @@ from .utils import fmtdate
 
 class GitPrivacyConfig(object):
     SECTION = "privacy"
+
     def __init__(self, gitdir: str) -> None:
         self.gitdir = gitdir
         try:
@@ -35,7 +35,8 @@ class GitPrivacyConfig(object):
             self.password = config.get_value(self.SECTION, 'password', '')
             self.salt = config.get_value(self.SECTION, 'salt', '')
             self.ignoreTimezone = bool(config.get_value(self.SECTION,
-                                                        'ignoreTimezone', False))
+                                                        'ignoreTimezone',
+                                                        False))
 
     def get_crypto(self) -> Optional[EncryptionProvider]:
         if not self.password:
@@ -45,11 +46,10 @@ class GitPrivacyConfig(object):
             self.write_config(salt=self.salt)
         return PasswordSecretBox(self.salt, str(self.password))
 
-
     def get_dateredacter(self) -> DateRedacter:
         if self.mode == "reduce" and self.pattern == '':
             raise click.UsageError(click.wrap_text(
-                "Missing pattern configuration. Set a reduction pattern using\n"
+                "Missing pattern configuration. Set a reduction pattern using\n"  # noqa: E501
                 "\n"
                 f"    git config {self.SECTION}.pattern <pattern>\n"
                 "\n"
@@ -58,7 +58,6 @@ class GitPrivacyConfig(object):
                 "M: month, d: day, h: hour, m: minute, s: second.",
                 preserve_paragraphs=True))
         return ResolutionDateRedacter(self.pattern, self.limit, self.mode)
-
 
     def write_config(self, **kwargs):
         """Write config"""
@@ -69,7 +68,8 @@ class GitPrivacyConfig(object):
 
 @click.group()
 @click.option('--gitdir', default=os.getcwd,
-              type=click.Path(exists=True, file_okay=False, dir_okay=True, readable=True),
+              type=click.Path(exists=True, file_okay=False, dir_okay=True,
+                              readable=True),
               help="Path to your Git repsitory.")
 @click.pass_context
 def cli(ctx: click.Context, gitdir):
@@ -87,13 +87,14 @@ def do_init(ctx: click.Context, enable_check):
     if enable_check:
         copy_hook(repo, "pre-commit")
 
+
 def copy_hook(repo: git.Repo, hook: str) -> None:
     from pkg_resources import resource_stream, resource_string
     import shutil
     hook_fn = os.path.join(repo.git_dir, "hooks", hook)
     try:
         dst = open(hook_fn, "xb")
-    except FileExistsError as e:
+    except FileExistsError:
         hook_txt = resource_string('gitprivacy.resources.hooks', hook).decode()
         with open(hook_fn, "r") as f:
             if f.read() == hook_txt:
@@ -107,7 +108,7 @@ def copy_hook(repo: git.Repo, hook: str) -> None:
         with resource_stream('gitprivacy.resources.hooks', hook) as src, dst:
             shutil.copyfileobj(src, dst)
             os.chmod(dst.fileno(), stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP |
-                     stat.S_IROTH | stat.S_IXOTH) # mode 755
+                     stat.S_IROTH | stat.S_IXOTH)  # mode 755
             print("Installed {} hook".format(hook))
 
 
@@ -132,8 +133,9 @@ def do_log(ctx: click.Context, revision_range: str, paths: click.Path):
         buf.append(click.style(f"commit {commit.hexsha}", fg='yellow'))
         a_date, c_date = encoder.decode(commit)
         if a_date != commit.authored_datetime:
-            buf.append(f"Author:   {commit.author.name} <{commit.author.email}>")
-            buf.append(click.style(f"Date:     {fmtdate(commit.authored_datetime)}", fg='red'))
+            buf.append(f"Author:   {commit.author.name} <{commit.author.email}>")  # noqa: E501
+            buf.append(click.style(f"Date: {fmtdate(commit.authored_datetime)}",  # noqa: E501)
+                                   fg='red'))
             buf.append(click.style(f"RealDate: {fmtdate(a_date)}", fg='green'))
         else:
             buf.append(f"Author: {commit.author.name} <{commit.author.email}>")
@@ -229,12 +231,11 @@ def do_check(ctx: click.Context):
     else:
         raise RuntimeError("Unexpected commit.")
     dummy_date = datetime.now()
-    if (last_tz and current_tz
-        and last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date)):
+    if (last_tz and current_tz and
+            last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date)):
         click.echo("Warning: Your timezone has changed.", err=True)
         if not ctx.obj.ignoreTimezone:
             ctx.exit(2)
 
 
-from .cli.email import redact_email
-cli.add_command(redact_email)
+cli.add_command(email.redact_email)
