@@ -13,8 +13,12 @@ class TestGitPrivacy(unittest.TestCase):
     def setUp(self) -> None:
         self.runner = CliRunner()
 
-    def setUpRepo(self) -> None:
+    def setUpRepo(self, templatedir="") -> None:
         self.git = git.Git()
+        # ignore global templates and hookdir for a clean slate
+        self.git.set_persistent_git_options(
+            c="init.templatedir="+templatedir,
+        )
         self.git.init()
         self.repo = git.Repo()
         # Prevent gitpython from forcing locales to ascii
@@ -393,6 +397,52 @@ class TestGitPrivacy(unittest.TestCase):
             commit = self.repo.head.commit
             self.assertEqual(commit.author.email, repl)
             self.assertEqual(commit.committer.email, repl)
+
+    def test_globaltemplate(self):
+        home = ".home"
+        templdir = os.path.join(home, ".git_template")
+        with self.runner.isolated_filesystem(), \
+                self.runner.isolation(env=dict(HOME=home)):
+            os.mkdir(home)
+            self.setUpRepo(templatedir=templdir)
+            self.setConfig()
+            result = self.invoke('init -g')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(result.output, "Installed post-commit hook" + os.linesep)
+            # local Git repo initialised BEFORE global template was set up
+            # hence the hooks are not present and active locally yet
+            self.assertFalse(os.access(os.path.join(".git", "hooks", "post-commit"),
+                                       os.R_OK | os.X_OK))  # not installed locally
+            self.assertFalse(os.access(os.path.join(".git", "hooks", "pre-commit"),
+                                       os.F_OK))
+            self.assertTrue(os.access(os.path.join(templdir, "hooks", "post-commit"),
+                                       os.R_OK | os.X_OK))
+            self.assertFalse(os.access(os.path.join(templdir, "hooks", "pre-commit"),
+                                       os.F_OK))
+            a = self.addCommit("a")  # gitpython already returns the rewritten commit
+            self.assertNotEqual(a.authored_datetime,
+                             a.authored_datetime.replace(minute=0, second=0))
+
+            # Now reinit local repo to fetch template hooks
+            self.setUpRepo(templatedir=templdir)
+            self.assertTrue(os.access(os.path.join(".git", "hooks", "post-commit"),
+                                       os.R_OK | os.X_OK))  # now installed locally too
+            self.assertFalse(os.access(os.path.join(".git", "hooks", "pre-commit"),
+                                       os.F_OK))
+            b = self.addCommit("b")  # gitpython already returns the rewritten commit
+            self.assertEqual(b.authored_datetime,
+                             b.authored_datetime.replace(minute=0, second=0))
+
+    def test_globaltemplate_init_outside_repo(self):
+        home = ".home"
+        templdir = os.path.join(home, ".git_template")
+        with self.runner.isolated_filesystem(), \
+                self.runner.isolation(env=dict(HOME=home)):
+            os.mkdir(home)
+            result = self.invoke('init -g')
+            self.assertEqual(result.exit_code, 2)
+            # installing a global hooks outside of a local repo is currently
+            # not possible, as repo checks are run before any command
 
 
 if __name__ == '__main__':

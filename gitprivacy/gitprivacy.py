@@ -79,26 +79,59 @@ def cli(ctx: click.Context, gitdir):
 @cli.command('init')
 @click.option('-c', '--enable-check', is_flag=True,
               help="Enable execution of 'check' before committing.")
+@click.option('-g', '--global', "globally", is_flag=True,
+              help="Setup a global template instead.")
 @click.pass_context
-def do_init(ctx: click.Context, enable_check):
+def do_init(ctx: click.Context, enable_check, globally):
     """Init git-privacy for this repository."""
     repo = ctx.obj.repo
-    copy_hook(repo, "post-commit")
+    if globally:
+        git_dir = get_template_dir(repo)
+    else:
+        git_dir = repo.git_dir
+    copy_hook(git_dir, "post-commit")
     if enable_check:
-        copy_hook(repo, "pre-commit")
+        copy_hook(git_dir, "pre-commit")
 
 
-def copy_hook(repo: git.Repo, hook: str) -> None:
+def get_template_dir(repo: git.Repo) -> str:
+    default_templatedir = os.path.join(os.path.expanduser("~"),
+                                       ".git_template")
+    with repo.config_reader(config_level="global") as config:
+        templatedir = config.get_value("init", "templatedir", "")
+    if templatedir:
+        if os.path.isdir(templatedir):
+            return templatedir  # use existing non-default template
+        elif templatedir != default_templatedir:
+            click.confirm(f"Template directory is currently set to "
+                          "non-existing {templatedir}. "
+                          "Overwrite?", abort=True)
+        else:
+            # template set to default but folders are missing
+            # recreate them in the following
+            pass
+    templatedir = default_templatedir
+    os.mkdir(templatedir)
+    os.mkdir(os.path.join(templatedir, "hooks"))
+    with repo.config_writer(config_level="global") as config:
+        config.set_value("init", "templatedir", templatedir)
+    return templatedir
+
+
+def copy_hook(git_path: str, hook: str, ) -> None:
     from pkg_resources import resource_stream, resource_string
     import shutil
-    hook_fn = os.path.join(repo.git_dir, "hooks", hook)
+    hookdir = os.path.join(git_path, "hooks")
+    if not os.path.exists(hookdir):
+        os.mkdir(hookdir)
+    hook_fn = os.path.join(hookdir, hook)
     try:
         dst = open(hook_fn, "xb")
     except FileExistsError:
         hook_txt = resource_string('gitprivacy.resources.hooks', hook).decode()
         with open(hook_fn, "r") as f:
             if f.read() == hook_txt:
-                print(f"{hook} hook is already installed.")
+                print(f"{hook} hook is already installed at {hook_fn}.")
                 return
         print(f"A Git hook already exists at {hook_fn}", file=sys.stderr)
         print("\nRemove hook and rerun or add the following to the existing "
