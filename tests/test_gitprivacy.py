@@ -276,8 +276,8 @@ class TestGitPrivacy(unittest.TestCase):
             time.tzset()
             result = self.invoke('check')
             self.assertEqual(result.exit_code, 2)
-            self.assertEqual(result.output,
-                             "Warning: Your timezone has changed." + os.linesep)
+            self.assertTrue(result.output.startswith(
+                "Warning: Your timezone has changed"))
 
     def test_checkchangeignore(self):
         with self.runner.isolated_filesystem():
@@ -291,8 +291,8 @@ class TestGitPrivacy(unittest.TestCase):
             time.tzset()
             result = self.invoke('check')
             self.assertEqual(result.exit_code, 0)
-            self.assertEqual(result.output,
-                             "Warning: Your timezone has changed." + os.linesep)
+            self.assertTrue(result.output.startswith(
+                "Warning: Your timezone has changed"))
 
     def test_checkwithhook(self):
         with self.runner.isolated_filesystem():

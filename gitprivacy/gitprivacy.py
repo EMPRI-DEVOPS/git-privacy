@@ -266,8 +266,14 @@ def do_check(ctx: click.Context):
     dummy_date = datetime.now()
     if (last_tz and current_tz and
             last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date)):
-        click.echo("Warning: Your timezone has changed.", err=True)
+        click.echo("Warning: Your timezone has changed since your last commit.", err=True)
         if not ctx.obj.ignoreTimezone:
+            click.echo(
+                '\n'
+                'abort commit (set "git config privacy.ignoreTimezone true"'
+                ' to commit anyway)',
+                err=True,
+            )
             ctx.exit(2)
 
 
