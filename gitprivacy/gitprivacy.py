@@ -66,7 +66,10 @@ class GitPrivacyConfig(object):
                 writer.set_value("privacy", key, value)
 
 
-@click.group()
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+
+@click.group(context_settings=CONTEXT_SETTINGS)
 @click.option('--gitdir', default=os.getcwd,
               type=click.Path(exists=True, file_okay=False, dir_okay=True,
                               readable=True),
