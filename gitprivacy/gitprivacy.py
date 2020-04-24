@@ -16,7 +16,7 @@ from .crypto import EncryptionProvider, PasswordSecretBox
 from .dateredacter import DateRedacter, ResolutionDateRedacter
 from .encoder import Encoder, BasicEncoder, MessageEmbeddingEncoder
 from .rewriter import AmendRewriter, FilterBranchRewriter
-from .utils import fmtdate
+from .utils import fmtdate, retry
 
 
 class GitPrivacyConfig(object):
@@ -180,6 +180,12 @@ def do_log(ctx: click.Context, revision_range: str, paths: click.Path):
     click.echo_via_pager(os.linesep.join(buf))
 
 
+@retry(retry_count=5, delay=0.1)
+def _is_cherrypick_finished(repo: git.Repo) -> bool:
+    cherrypick_head = os.path.join(repo.git_dir, "CHERRY_PICK_HEAD")
+    return os.path.exists(cherrypick_head) is False
+
+
 @cli.command('redate')
 @click.argument('startpoint', required=False, default='')
 @click.option('--only-head', is_flag=True,
@@ -192,6 +198,20 @@ def do_redate(ctx: click.Context, startpoint: str,
     """Redact timestamps of existing commits."""
     assertCommits(ctx)
     repo = ctx.obj.repo
+    # check for in progress rewrites (cherry-picks)
+    # newer versions of Git trigger post-commit hook during
+    # a cherry-pick, which conflicts with the amend rewriter
+    # and also might lead to unexpected redates.
+    # Hence do not redate during cherry-picks.
+    # Briefly wait for the cherry-pick to finish
+    # otherwise abort redating with a warning.
+    if not _is_cherrypick_finished(repo):
+        click.echo(
+            '\n'
+            'Warning: cherry-pick in progress. No redate possible.',
+            err=True,
+        )
+        ctx.exit(5)
     redacter = ctx.obj.get_dateredacter()
     crypto = ctx.obj.get_crypto()
     if crypto:

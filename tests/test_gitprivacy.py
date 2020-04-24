@@ -448,6 +448,78 @@ class TestGitPrivacy(unittest.TestCase):
             # installing a global hooks outside of a local repo is currently
             # not possible, as repo checks are run before any command
 
+    def does_cherrypick_run_postcommit(self) -> bool:
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            hookpath = os.path.join(".git", "hooks", "post-commit")
+            os.mkdir(os.path.join(".git", "hooks"))
+            with open(hookpath, "w") as f:
+                f.write("/bin/sh\n\necho DEADBEEF")
+            os.chmod(hookpath, 0o755)
+            a = self.addCommit("a")
+            res, stdout, stderr = self.git.execute(
+                ["git", "cherry-pick", "--keep-redundant-commits", "HEAD"],
+                with_extended_output=True,
+            )
+        self.git = None
+        self.repo = None
+        return "DEADBEEF" in stderr
+
+    def test_rebase(self):
+        cherryhook_active = self.does_cherrypick_run_postcommit()
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            a = self.addCommit("a")
+            c = self.addCommit("c")
+            b = self.addCommit("b")
+            def _log():
+                return [c.message.strip() for c in self.repo.iter_commits()]
+            self.assertEqual(_log(), ["b", "c", "a"])
+            # swap last two commits
+            def _rebase_cmds():
+                return (
+                    f"p {self.repo.commit('HEAD')}"
+                    "\n"
+                    f"p {self.repo.commit('HEAD^')}"
+                )
+            res, stdout, stderr = self.git.rebase(
+                ["-q", "-i", "HEAD~2"],
+                env=dict(GIT_SEQUENCE_EDITOR=f"echo '{_rebase_cmds()}' >"),
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            self.assertEqual(_log(), ["c", "b", "a"])
+            self.assertEqual(stdout, "")
+            self.assertNotIn("git.exc.GitCommandError", stderr)
+            self.assertNotIn("cherry-pick in progress", stderr)
+            # init git-privacy and try once more
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            # swap last two commits back
+            res, stdout, stderr = self.git.rebase(
+                ["-q", "-i", "HEAD~2"],
+                env=dict(GIT_SEQUENCE_EDITOR=f"echo '{_rebase_cmds()}' >"),
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            self.assertEqual(_log(), ["b", "c", "a"])
+            self.assertEqual(stdout, "")
+            self.assertNotIn("git.exc.GitCommandError", stderr)
+            # check result of redating during rebase
+            # depending on external factors a cherry-pick might not have
+            # concluded. Distinguish both cases.
+            br = self.repo.head.commit
+            cr = self.repo.commit("HEAD^")
+            if not cherryhook_active or "cherry-pick in progress" in stderr:
+                # no redate
+                self.assertEqual(b.authored_date, br.authored_date)
+                self.assertEqual(c.authored_date, cr.authored_date)
+            else:
+                # redated
+                self.assertNotEqual(b.authored_date, br.authored_date)
+                self.assertNotEqual(c.authored_date, cr.authored_date)
+
 
 if __name__ == '__main__':
     unittest.main()
