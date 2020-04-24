@@ -448,6 +448,41 @@ class TestGitPrivacy(unittest.TestCase):
             # installing a global hooks outside of a local repo is currently
             # not possible, as repo checks are run before any command
 
+    def test_rebase(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            a = self.addCommit("a")
+            c = self.addCommit("c")
+            b = self.addCommit("b")
+            def _log():
+                return [c.message.strip() for c in self.repo.iter_commits()]
+            self.assertEqual(_log(), ["b", "c", "a"])
+            # swap last two commits
+            res, stdout, stderr = self.git.rebase(
+                ["-q", "-i", "HEAD~2"],
+                env=dict(GIT_SEQUENCE_EDITOR="sed -i , -n 'h;1n;2p;g;p'"),
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            self.assertEqual(stdout, "")
+            self.assertNotIn("git.exc.GitCommandError", stderr)
+            self.assertEqual(_log(), ["c", "b", "a"])
+            # init git-privacy and try once more
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            # swap last two commits back
+            # sed idea cf. https://stackoverflow.com/a/33388211
+            res, stdout, stderr = self.git.rebase(
+                ["-q", "-i", "HEAD~2"],
+                env=dict(GIT_SEQUENCE_EDITOR="sed -i , -n 'h;1n;2p;g;p'"),
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            self.assertEqual(stdout, "")
+            self.assertNotIn("git.exc.GitCommandError", stderr)
+            self.assertEqual(_log(), ["b", "c", "a"])
+
 
 if __name__ == '__main__':
     unittest.main()
