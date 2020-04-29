@@ -406,6 +406,10 @@ class TestGitPrivacy(unittest.TestCase):
             os.mkdir(home)
             self.setUpRepo(templatedir=templdir)
             self.setConfig()
+            # custom template causes Travis CI to fail finding
+            # usabe user info – set explicitly
+            self.git.config(["user.name", "John Doe"])
+            self.git.config(["user.email", "johndoe@example.com"])
             result = self.invoke('init -g')
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output, "Installed post-commit hook" + os.linesep)
