@@ -1,6 +1,6 @@
 [![Latest version on PyPI](https://img.shields.io/pypi/v/gitprivacy.svg)](https://pypi.org/project/gitprivacy/)
 [![Supported Python versions](https://img.shields.io/pypi/pyversions/gitprivacy.svg)](https://pypi.org/project/gitprivacy/)
-[![Build Status](https://travis-ci.org/cburkert/pyGitPrivacy.svg?branch=master)](https://travis-ci.org/cburkert/pyGitPrivacy)
+[![Build Status](https://travis-ci.org/EMPRI-DEVOPS/git-privacy.svg?branch=master)](https://travis-ci.org/EMPRI-DEVOPS/git-privacy)
 
 # git-privacy: Keep your coding hours private
 
