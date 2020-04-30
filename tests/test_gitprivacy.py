@@ -459,29 +459,34 @@ class TestGitPrivacy(unittest.TestCase):
                 return [c.message.strip() for c in self.repo.iter_commits()]
             self.assertEqual(_log(), ["b", "c", "a"])
             # swap last two commits
+            def _rebase_cmds():
+                return (
+                    f"p {self.repo.commit('HEAD')}"
+                    "\n"
+                    f"p {self.repo.commit('HEAD^')}"
+                )
             res, stdout, stderr = self.git.rebase(
                 ["-q", "-i", "HEAD~2"],
-                env=dict(GIT_SEQUENCE_EDITOR="sed -i , -n 'h;1n;2p;g;p'"),
+                env=dict(GIT_SEQUENCE_EDITOR=f"echo '{_rebase_cmds()}' >"),
                 with_extended_output=True,
             )
             self.assertEqual(res, 0)
+            self.assertEqual(_log(), ["c", "b", "a"])
             self.assertEqual(stdout, "")
             self.assertNotIn("git.exc.GitCommandError", stderr)
-            self.assertEqual(_log(), ["c", "b", "a"])
             # init git-privacy and try once more
             result = self.invoke('init')
             self.assertEqual(result.exit_code, 0)
             # swap last two commits back
-            # sed idea cf. https://stackoverflow.com/a/33388211
             res, stdout, stderr = self.git.rebase(
                 ["-q", "-i", "HEAD~2"],
-                env=dict(GIT_SEQUENCE_EDITOR="sed -i , -n 'h;1n;2p;g;p'"),
+                env=dict(GIT_SEQUENCE_EDITOR=f"echo '{_rebase_cmds()}' >"),
                 with_extended_output=True,
             )
             self.assertEqual(res, 0)
+            self.assertEqual(_log(), ["b", "c", "a"])
             self.assertEqual(stdout, "")
             self.assertNotIn("git.exc.GitCommandError", stderr)
-            self.assertEqual(_log(), ["b", "c", "a"])
 
 
 if __name__ == '__main__':
