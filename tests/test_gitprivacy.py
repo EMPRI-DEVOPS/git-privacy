@@ -489,6 +489,18 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertNotIn("git.exc.GitCommandError", stderr)
             self.assertNotIn("Traceback", stderr)
 
+            # check result of redating during rebase
+            br = self.repo.head.commit
+            self.assertNotEqual(b, br)
+            self.assertNotEqual(b.authored_date, br.authored_date)
+            self.assertEqual(br.authored_datetime,
+                             b.authored_datetime.replace(minute=0, second=0))
+            cr = self.repo.commit("HEAD^")
+            self.assertNotEqual(c, cr)
+            self.assertNotEqual(c.authored_date, cr.authored_date)
+            self.assertEqual(cr.authored_datetime,
+                             c.authored_datetime.replace(minute=0, second=0))
+
 
 if __name__ == '__main__':
     unittest.main()
