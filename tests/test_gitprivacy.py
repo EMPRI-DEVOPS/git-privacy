@@ -487,6 +487,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(_log(), ["b", "c", "a"])
             self.assertEqual(stdout, "")
             self.assertNotIn("git.exc.GitCommandError", stderr)
+            self.assertNotIn("Traceback", stderr)
 
 
 if __name__ == '__main__':
