@@ -192,6 +192,15 @@ def do_redate(ctx: click.Context, startpoint: str,
     """Redact timestamps of existing commits."""
     assertCommits(ctx)
     repo = ctx.obj.repo
+    # check for in progress rewrites (cherry-picks)
+    # newer versions of Git trigger post-commit hook during
+    # a cherry-pick, which conflicts with the amend rewriter
+    # and also might lead to unexpected redates.
+    # Hence do not redate during cherry-picks.
+    cherrypick_head = os.path.join(repo.git_dir, "CHERRY_PICK_HEAD")
+    if os.path.exists(cherrypick_head):
+        #click.echo("No date redaction during cherry-picks", err=True)
+        return  # do not redate during running cherry-picks
     redacter = ctx.obj.get_dateredacter()
     crypto = ctx.obj.get_crypto()
     if crypto:

@@ -490,16 +490,13 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertNotIn("Traceback", stderr)
 
             # check result of redating during rebase
+            # no redating should occur during rebases
             br = self.repo.head.commit
-            self.assertNotEqual(b, br)
-            self.assertNotEqual(b.authored_date, br.authored_date)
-            self.assertEqual(br.authored_datetime,
-                             b.authored_datetime.replace(minute=0, second=0))
+            self.assertEqual(b, br)
+            self.assertEqual(b.authored_date, br.authored_date)
             cr = self.repo.commit("HEAD^")
-            self.assertNotEqual(c, cr)
-            self.assertNotEqual(c.authored_date, cr.authored_date)
-            self.assertEqual(cr.authored_datetime,
-                             c.authored_datetime.replace(minute=0, second=0))
+            self.assertEqual(c, cr)
+            self.assertEqual(c.authored_date, cr.authored_date)
 
 
 if __name__ == '__main__':
