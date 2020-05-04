@@ -16,7 +16,7 @@ from .crypto import EncryptionProvider, PasswordSecretBox
 from .dateredacter import DateRedacter, ResolutionDateRedacter
 from .encoder import Encoder, BasicEncoder, MessageEmbeddingEncoder
 from .rewriter import AmendRewriter, FilterBranchRewriter
-from .utils import fmtdate, retry
+from .utils import fmtdate
 
 
 class GitPrivacyConfig(object):
@@ -180,7 +180,6 @@ def do_log(ctx: click.Context, revision_range: str, paths: click.Path):
     click.echo_via_pager(os.linesep.join(buf))
 
 
-@retry(retry_count=5, delay=0.1)
 def _is_cherrypick_finished(repo: git.Repo) -> bool:
     cherrypick_head = os.path.join(repo.git_dir, "CHERRY_PICK_HEAD")
     return os.path.exists(cherrypick_head) is False
