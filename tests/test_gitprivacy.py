@@ -474,6 +474,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(_log(), ["c", "b", "a"])
             self.assertEqual(stdout, "")
             self.assertNotIn("git.exc.GitCommandError", stderr)
+            self.assertNotIn("cherry-pick in progress", stderr)
             # init git-privacy and try once more
             result = self.invoke('init')
             self.assertEqual(result.exit_code, 0)
@@ -487,16 +488,19 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(_log(), ["b", "c", "a"])
             self.assertEqual(stdout, "")
             self.assertNotIn("git.exc.GitCommandError", stderr)
-            self.assertNotIn("Traceback", stderr)
-
             # check result of redating during rebase
-            # no redating should occur during rebases
+            # depending on external factors a cherry-pick might not have
+            # concluded. Distinguish both cases.
             br = self.repo.head.commit
-            self.assertEqual(b, br)
-            self.assertEqual(b.authored_date, br.authored_date)
             cr = self.repo.commit("HEAD^")
-            self.assertEqual(c, cr)
-            self.assertEqual(c.authored_date, cr.authored_date)
+            if "cherry-pick in progress" in stderr:
+                # no redate
+                self.assertEqual(b.authored_date, br.authored_date)
+                self.assertEqual(c.authored_date, cr.authored_date)
+            else:
+                # redated
+                self.assertNotEqual(b.authored_date, br.authored_date)
+                self.assertNotEqual(c.authored_date, cr.authored_date)
 
 
 if __name__ == '__main__':
