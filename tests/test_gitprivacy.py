@@ -448,7 +448,25 @@ class TestGitPrivacy(unittest.TestCase):
             # installing a global hooks outside of a local repo is currently
             # not possible, as repo checks are run before any command
 
+    def does_cherrypick_run_postcommit(self) -> bool:
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            hookpath = os.path.join(".git", "hooks", "post-commit")
+            os.mkdir(os.path.join(".git", "hooks"))
+            with open(hookpath, "w") as f:
+                f.write("/bin/sh\n\necho DEADBEEF")
+            os.chmod(hookpath, 0o755)
+            a = self.addCommit("a")
+            res, stdout, stderr = self.git.execute(
+                ["git", "cherry-pick", "--keep-redundant-commits", "HEAD"],
+                with_extended_output=True,
+            )
+        self.git = None
+        self.repo = None
+        return "DEADBEEF" in stderr
+
     def test_rebase(self):
+        cherryhook_active = self.does_cherrypick_run_postcommit()
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
@@ -493,7 +511,7 @@ class TestGitPrivacy(unittest.TestCase):
             # concluded. Distinguish both cases.
             br = self.repo.head.commit
             cr = self.repo.commit("HEAD^")
-            if "cherry-pick in progress" in stderr:
+            if not cherryhook_active or "cherry-pick in progress" in stderr:
                 # no redate
                 self.assertEqual(b.authored_date, br.authored_date)
                 self.assertEqual(c.authored_date, cr.authored_date)
