@@ -166,6 +166,18 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertNotEqual(a, ar)
             self.assertNotEqual(a.authored_date, ar.authored_date)
 
+    def test_redateheadempty(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.git.commit(["--allow-empty", "-m foo"])
+            a = self.repo.head.commit
+            result = self.invoke('redate --only-head')
+            self.assertEqual(result.exit_code, 0)
+            ar = self.repo.commit("HEAD")
+            self.assertNotEqual(a, ar)
+            self.assertNotEqual(a.authored_date, ar.authored_date)
+
     def test_redatefromstartpoint(self):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
