@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import git
 import re
 from typing import Optional, Tuple
@@ -54,7 +54,7 @@ def _extract_enc_dates(msg: str) -> Optional[str]:
 
 def _encrypt_for_msg(crypto: EncryptionProvider, a_date: datetime,
                      c_date: datetime) -> str:
-    plain = ";".join(d.strftime("%s %z") for d in (a_date, c_date))
+    plain = ";".join(_strftime(d) for d in (a_date, c_date))
     return crypto.encrypt(plain)
 
 
@@ -70,7 +70,15 @@ def _decrypt_from_msg(crypto: EncryptionProvider,
     return a_date, c_date
 
 
-def _strptime(string: str):
+def _strftime(d: datetime) -> str:
+    """Returns a UTC Posix timestamp with timezone information"""
+    utc_sec = int(d.timestamp())
+    tz = d.strftime("%z")
+    return f"{utc_sec} {tz}"
+
+
+def _strptime(string: str) -> datetime:
+    """Takes a UTC Posix timestamp with timezone information"""
     seconds, tz = string.split()
     return datetime.fromtimestamp(
         int(seconds),

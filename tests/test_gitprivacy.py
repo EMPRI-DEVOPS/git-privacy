@@ -1,12 +1,14 @@
 import click
-from click.testing import CliRunner
 import git
 import locale
 import os
 import time
 import unittest
 
-from gitprivacy.gitprivacy import cli
+from click.testing import CliRunner
+from datetime import datetime, timedelta, timezone
+
+from gitprivacy.gitprivacy import cli, GitPrivacyConfig
 
 
 class TestGitPrivacy(unittest.TestCase):
@@ -338,6 +340,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(result.output, "")
 
     def test_encryptdates(self):
+        import gitprivacy.encoder.msgembed as msgenc
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
@@ -351,6 +354,23 @@ class TestGitPrivacy(unittest.TestCase):
             result = self.invoke('log')
             self.assertEqual(result.exit_code, 0)
             self.assertTrue("RealDate" in result.output)
+            # check decrypted date correctness
+            somedt = datetime(2020, 1, 1, 6, 0, tzinfo=timezone(timedelta(0, 1800)))
+            self.assertEqual(msgenc._strftime(somedt), '1577856600 +0030')
+            self.assertEqual(msgenc._strptime('1577856600 +0030'), somedt)
+            self.assertEqual(
+                a.authored_datetime,
+                msgenc._strptime(msgenc._strftime(a.authored_datetime)),
+            )
+            ar = self.repo.head.commit
+            conf = GitPrivacyConfig(".")
+            crypto = conf.get_crypto()
+            self.assertNotEqual(crypto, None)
+            encoder = msgenc.MessageEmbeddingEncoder(None, crypto)
+            real_ad, real_cd = encoder.decode(ar)
+            self.assertEqual(real_ad, a.authored_datetime)
+            self.assertEqual(real_cd, a.authored_datetime)
+
 
     def test_pwdmismatch(self):
         with self.runner.isolated_filesystem():
