@@ -48,7 +48,7 @@ class GitPrivacyConfig(object):
 
     def get_dateredacter(self) -> DateRedacter:
         if self.mode == "reduce" and self.pattern == '':
-            raise click.UsageError(click.wrap_text(
+            raise click.ClickException(click.wrap_text(
                 "Missing pattern configuration. Set a reduction pattern using\n"  # noqa: E501
                 "\n"
                 f"    git config {self.SECTION}.pattern <pattern>\n"

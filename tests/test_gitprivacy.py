@@ -94,7 +94,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.setUpRepo()
             self.addCommit("a")
             result = self.invoke('redate')
-            self.assertEqual(result.exit_code, 2)
+            self.assertEqual(result.exit_code, 1)
 
     def test_redate(self):
         with self.runner.isolated_filesystem():
