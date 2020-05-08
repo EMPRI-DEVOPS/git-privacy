@@ -19,6 +19,8 @@ class AmendRewriter(Rewriter):
         a_redacted, c_redacted, msg_extra = self.encoder.encode(commit)
         cmd = [
             "git", "commit", "--amend", "--allow-empty",
+            # skip repeated pre-commit hook to avoid gitpython locale issues
+            "--no-verify",
             f"--date=\"{fmtdate(a_redacted)}\"",
         ]
         if msg_extra:
