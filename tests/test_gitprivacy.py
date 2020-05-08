@@ -239,11 +239,14 @@ class TestGitPrivacy(unittest.TestCase):
             self.setConfig()
             result = self.invoke('init')
             self.assertEqual(result.exit_code, 0)
-            self.assertEqual(result.output, "Installed post-commit hook" + os.linesep)
+            self.assertEqual(result.output, os.linesep.join(
+                f"Installed {hook} hook"
+                for hook in ["post-commit", "pre-commit"]
+            ) + os.linesep)
             self.assertTrue(os.access(os.path.join(".git", "hooks", "post-commit"),
                                       os.R_OK | os.X_OK))
-            self.assertFalse(os.access(os.path.join(".git", "hooks", "pre-commit"),
-                                       os.F_OK))
+            self.assertTrue(os.access(os.path.join(".git", "hooks", "pre-commit"),
+                                      os.F_OK))
             a = self.addCommit("a")  # gitpython already returns the rewritten commit
             self.assertEqual(a.authored_datetime,
                              a.authored_datetime.replace(minute=0, second=0))
@@ -252,7 +255,7 @@ class TestGitPrivacy(unittest.TestCase):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
-            result = self.invoke('init --enable-check')
+            result = self.invoke('init --timezone-change=abort')
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output, os.linesep.join(
                 f"Installed {hook} hook"
@@ -283,15 +286,16 @@ class TestGitPrivacy(unittest.TestCase):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
+            self.git.config(["privacy.ignoreTimezone", "false"])  # default is ignore
             os.environ['TZ'] = 'Europe/London'
             time.tzset()
             a = self.addCommit("a")
             os.environ['TZ'] = 'Europe/Berlin'
             time.tzset()
             result = self.invoke('check')
-            self.assertEqual(result.exit_code, 2)
             self.assertTrue(result.output.startswith(
                 "Warning: Your timezone has changed"))
+            self.assertEqual(result.exit_code, 2)
 
     def test_checkchangeignore(self):
         with self.runner.isolated_filesystem():
@@ -312,7 +316,18 @@ class TestGitPrivacy(unittest.TestCase):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
-            result = self.invoke('init -c')
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            os.environ['TZ'] = 'Europe/London'
+            time.tzset()
+            a = self.addCommit("a")
+            os.environ['TZ'] = 'Europe/Berlin'
+            time.tzset()
+            self.addCommit("b")  # should not fail
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            result = self.invoke('init --timezone-change=abort')
             self.assertEqual(result.exit_code, 0)
             os.environ['TZ'] = 'Europe/London'
             time.tzset()
@@ -326,6 +341,7 @@ class TestGitPrivacy(unittest.TestCase):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
+            self.git.config(["privacy.ignoreTimezone", "false"])  # default is ignore
             os.environ['TZ'] = 'Europe/London'
             time.tzset()
             self.git.config(["user.email", "doe@example.com"])
@@ -444,7 +460,10 @@ class TestGitPrivacy(unittest.TestCase):
             self.git.config(["user.email", "johndoe@example.com"])
             result = self.invoke('init -g')
             self.assertEqual(result.exit_code, 0)
-            self.assertEqual(result.output, "Installed post-commit hook" + os.linesep)
+            self.assertEqual(result.output, os.linesep.join(
+                f"Installed {hook} hook"
+                for hook in ["post-commit", "pre-commit"]
+            ) + os.linesep)
             # local Git repo initialised BEFORE global template was set up
             # hence the hooks are not present and active locally yet
             self.assertFalse(os.access(os.path.join(".git", "hooks", "post-commit"),
@@ -453,8 +472,8 @@ class TestGitPrivacy(unittest.TestCase):
                                        os.F_OK))
             self.assertTrue(os.access(os.path.join(templdir, "hooks", "post-commit"),
                                        os.R_OK | os.X_OK))
-            self.assertFalse(os.access(os.path.join(templdir, "hooks", "pre-commit"),
-                                       os.F_OK))
+            self.assertTrue(os.access(os.path.join(templdir, "hooks", "pre-commit"),
+                                      os.F_OK))
             a = self.addCommit("a")  # gitpython already returns the rewritten commit
             self.assertNotEqual(a.authored_datetime,
                              a.authored_datetime.replace(minute=0, second=0))
@@ -463,8 +482,8 @@ class TestGitPrivacy(unittest.TestCase):
             self.setUpRepo(templatedir=templdir)
             self.assertTrue(os.access(os.path.join(".git", "hooks", "post-commit"),
                                        os.R_OK | os.X_OK))  # now installed locally too
-            self.assertFalse(os.access(os.path.join(".git", "hooks", "pre-commit"),
-                                       os.F_OK))
+            self.assertTrue(os.access(os.path.join(".git", "hooks", "pre-commit"),
+                                      os.F_OK))
             b = self.addCommit("b")  # gitpython already returns the rewritten commit
             self.assertEqual(b.authored_datetime,
                              b.authored_datetime.replace(minute=0, second=0))

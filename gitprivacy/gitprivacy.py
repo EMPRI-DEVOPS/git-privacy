@@ -36,7 +36,7 @@ class GitPrivacyConfig(object):
             self.salt = config.get_value(self.SECTION, 'salt', '')
             self.ignoreTimezone = bool(config.get_value(self.SECTION,
                                                         'ignoreTimezone',
-                                                        False))
+                                                        True))
 
     def get_crypto(self) -> Optional[EncryptionProvider]:
         if not self.password:
@@ -80,12 +80,15 @@ def cli(ctx: click.Context, gitdir):
 
 
 @cli.command('init')
-@click.option('-c', '--enable-check', is_flag=True,
-              help="Enable execution of 'check' before committing.")
 @click.option('-g', '--global', "globally", is_flag=True,
               help="Setup a global template instead.")
+@click.option('--timezone-change', type=click.Choice(("warn", "abort")),
+              #default="warn", show_default=True,
+              help=("Reaction strategy to detected time zone changes pre commit."
+                    " (default: warn)"))
 @click.pass_context
-def do_init(ctx: click.Context, enable_check, globally):
+def do_init(ctx: click.Context, globally: bool, 
+            timezone_change: Optional[str]) -> None:
     """Init git-privacy for this repository."""
     repo = ctx.obj.repo
     if globally:
@@ -93,8 +96,11 @@ def do_init(ctx: click.Context, enable_check, globally):
     else:
         git_dir = repo.git_dir
     copy_hook(git_dir, "post-commit")
-    if enable_check:
-        copy_hook(git_dir, "pre-commit")
+    copy_hook(git_dir, "pre-commit")
+    # only (over-)write settings if option is explicitly specified
+    if timezone_change is not None:
+        assert timezone_change in ("warn", "abort")
+        ctx.obj.write_config(ignoreTimezone=(timezone_change == "warn"))
 
 
 def get_template_dir(repo: git.Repo) -> str:
@@ -259,13 +265,31 @@ def do_redate(ctx: click.Context, startpoint: str,
     rewriter.finish(rev)
 
 
-@cli.command('check')
+@cli.command('check', hidden=True)
 @click.pass_context
 def do_check(ctx: click.Context):
+    """Pre-commit checks."""
+    # check for setup up redaction patterns
+    ctx.obj.get_dateredacter()  # raises errors if pattern is missing
+    # check for timezone changes
+    tzchanged = ctx.invoke(check_timezone_changes)
+    if tzchanged and not ctx.obj.ignoreTimezone:
+        click.echo(
+            '\n'
+            'abort commit (set "git config privacy.ignoreTimezone true"'
+            ' to commit anyway)',
+            err=True,
+        )
+        ctx.exit(2)
+
+
+@cli.command('tzcheck')
+@click.pass_context
+def check_timezone_changes(ctx: click.Context) -> bool:
     """Check for timezone change since last commit."""
     repo = ctx.obj.repo
     if not repo.head.is_valid():
-        return  # no previous commits
+        return False  # no previous commits
     with repo.config_reader() as cr:
         user_email = cr.get_value("user", "email", "")
     if not user_email:
@@ -277,7 +301,7 @@ def do_check(ctx: click.Context):
     )
     last_commit = next(user_commits, None)
     if last_commit is None:
-        return  # no previous commits by this user
+        return False  # no previous commits by this user
     current_tz = datetime.now(timezone.utc).astimezone().tzinfo
     if last_commit.author.email == user_email:
         last_tz = last_commit.authored_datetime.tzinfo
@@ -289,14 +313,8 @@ def do_check(ctx: click.Context):
     if (last_tz and current_tz and
             last_tz.utcoffset(dummy_date) != current_tz.utcoffset(dummy_date)):
         click.echo("Warning: Your timezone has changed since your last commit.", err=True)
-        if not ctx.obj.ignoreTimezone:
-            click.echo(
-                '\n'
-                'abort commit (set "git config privacy.ignoreTimezone true"'
-                ' to commit anyway)',
-                err=True,
-            )
-            ctx.exit(2)
+        return True
+    return False
 
 
 cli.add_command(email.redact_email)

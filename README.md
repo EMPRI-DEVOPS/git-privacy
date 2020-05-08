@@ -48,17 +48,11 @@ Note: Git-privacy requires Python version 3.6 or later.
 ### Redaction of New Commits
 
 New commits are automatically redacted if git-privacy is initialised in a repo.
-This is achieve via a post-commit hook.
+This is achieved via a post-commit hook.
 
 If you want to manually redact the last commit, run:
 
     git-privacy redate --only-head
-
-### View Unredacted Dates
-
-To view the unredacted commit dates, git-privacy offers a git-log-like listing:
-
-    git-privacy log
 
 ### Bulk Re-dating of Commits
 
@@ -81,12 +75,27 @@ For example, you can use this to redate all commits of branch since it has been 
 
     git-privacy redate master
 
-## Optional: Timezone Change Warnings
+### View Unredacted Dates
 
-Additionally you may install a pre-commit hook which currently checks if your timezone differs from the last commit.
-To do so simply execute:
+To view the unredacted commit dates, git-privacy offers a git-log-like listing:
 
-    git-privacy init --enable-check
+    git-privacy log
+
+Note: Unredacted dates are only preserved if you specify a password in the
+config which allows git-privacy to store the encrypted dates in the commit.
+
+
+### Time Zone Change Warnings
+
+Git commit dates include your current system time zone. These time zones might
+leak information about your travel activities.
+Git-privacy warns you about any changes in your system time zone since your last commit.
+By default, this is just a warning.
+You can set git-privacy to prevent commits with changed time zone by running
+
+    git-privacy init --timezone-change=abort
+
+or by setting the `privacy.ignoreTimezone` switch in the Git config to `False`.
 
 
 ## Email Address Redaction
