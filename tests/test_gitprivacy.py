@@ -42,7 +42,12 @@ class TestGitPrivacy(unittest.TestCase):
         with open(filename, "w") as f:
             f.write(filename)
         self.git.add(filename)
-        self.git.commit(f"-m {filename}")
+        res, stdout, stderr = self.git.commit(
+            f"-m {filename}",
+            with_extended_output=True,
+        )
+        if res != 0:
+            raise RuntimeError("Commit failed %s" % stderr)
         return self.repo.head.commit
 
     def invoke(self, args):
