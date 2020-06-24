@@ -1,9 +1,11 @@
-from datetime import datetime, timezone
-import git
+import git  # type: ignore
 import re
+
+from datetime import datetime, timezone
 from typing import Optional, Tuple
 
 from . import Encoder, BasicEncoder
+from .. import utils
 from ..crypto import EncryptionProvider
 from ..dateredacter import DateRedacter
 
@@ -54,7 +56,7 @@ def _extract_enc_dates(msg: str) -> Optional[str]:
 
 def _encrypt_for_msg(crypto: EncryptionProvider, a_date: datetime,
                      c_date: datetime) -> str:
-    plain = ";".join(_strftime(d) for d in (a_date, c_date))
+    plain = ";".join(utils.dt2gitdate(d) for d in (a_date, c_date))
     return crypto.encrypt(plain)
 
 
@@ -66,21 +68,5 @@ def _decrypt_from_msg(crypto: EncryptionProvider,
     plain_dates = crypto.decrypt(enc_dates)
     if plain_dates is None:
         return None
-    a_date, c_date = [_strptime(d) for d in plain_dates.split(";")]
+    a_date, c_date = [utils.gitdate2dt(d) for d in plain_dates.split(";")]
     return a_date, c_date
-
-
-def _strftime(d: datetime) -> str:
-    """Returns a UTC Posix timestamp with timezone information"""
-    utc_sec = int(d.timestamp())
-    tz = d.strftime("%z")
-    return f"{utc_sec} {tz}"
-
-
-def _strptime(string: str) -> datetime:
-    """Takes a UTC Posix timestamp with timezone information"""
-    seconds, tz = string.split()
-    return datetime.fromtimestamp(
-        int(seconds),
-        datetime.strptime(tz, "%z").tzinfo,
-    )

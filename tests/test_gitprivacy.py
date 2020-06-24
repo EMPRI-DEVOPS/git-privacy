@@ -362,6 +362,7 @@ class TestGitPrivacy(unittest.TestCase):
 
     def test_encryptdates(self):
         import gitprivacy.encoder.msgembed as msgenc
+        from gitprivacy import utils
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
@@ -377,11 +378,11 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertTrue("RealDate" in result.output)
             # check decrypted date correctness
             somedt = datetime(2020, 1, 1, 6, 0, tzinfo=timezone(timedelta(0, 1800)))
-            self.assertEqual(msgenc._strftime(somedt), '1577856600 +0030')
-            self.assertEqual(msgenc._strptime('1577856600 +0030'), somedt)
+            self.assertEqual(utils.dt2gitdate(somedt), '1577856600 +0030')
+            self.assertEqual(utils.gitdate2dt('1577856600 +0030'), somedt)
             self.assertEqual(
                 a.authored_datetime,
-                msgenc._strptime(msgenc._strftime(a.authored_datetime)),
+                utils.gitdate2dt(utils.dt2gitdate(a.authored_datetime)),
             )
             ar = self.repo.head.commit
             conf = GitPrivacyConfig(".")
