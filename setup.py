@@ -21,6 +21,7 @@ setup(
     install_requires=[
         'click>=7',
         'gitpython',
+        'git-filter-repo>=2.27',
         'pynacl',
     ],
     entry_points={

@@ -1,5 +1,5 @@
 import click
-import git
+import git  # type: ignore
 import locale
 import os
 import time
@@ -39,6 +39,7 @@ class TestGitPrivacy(unittest.TestCase):
         self.git.config(["privacy.pattern", "m,s"])
 
     def addCommit(self, filename: str) -> git.Commit:
+        import copy
         with open(filename, "w") as f:
             f.write(filename)
         self.git.add(filename)
@@ -48,7 +49,10 @@ class TestGitPrivacy(unittest.TestCase):
         )
         if res != 0:
             raise RuntimeError("Commit failed %s" % stderr)
-        return self.repo.head.commit
+        # return a copy to avoid errors caused by the fazy loading of the
+        # Commit object which in combination with git-filter-repo's eager
+        # pruning results in failed lookups of no longer existing hashes
+        return copy.copy(self.repo.head.commit)
 
     def invoke(self, args):
         return self.runner.invoke(cli, args=args)

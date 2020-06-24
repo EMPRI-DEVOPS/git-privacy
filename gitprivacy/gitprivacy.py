@@ -3,19 +3,20 @@
 git privacy
 """
 import click
-from datetime import datetime, timezone
+import git  # type: ignore
 import os
 import stat
 import sys
+
+from datetime import datetime, timezone
 from typing import Optional
-import git  # type: ignore
 
 from .cli import email
 from .cli.utils import assertCommits
 from .crypto import EncryptionProvider, PasswordSecretBox
 from .dateredacter import DateRedacter, ResolutionDateRedacter
 from .encoder import Encoder, BasicEncoder, MessageEmbeddingEncoder
-from .rewriter import AmendRewriter, FilterBranchRewriter
+from .rewriter import AmendRewriter, FilterRepoRewriter
 from .utils import fmtdate
 
 
@@ -234,7 +235,7 @@ def do_redate(ctx: click.Context, startpoint: str,
     if repo.is_dirty():
         click.echo(f"Cannot redate: You have unstaged changes.", err=True)
         ctx.exit(1)
-    rewriter = FilterBranchRewriter(repo, encoder)
+    rewriter = FilterRepoRewriter(repo, encoder)
     single_commit = next(repo.head.commit.iter_parents(), None) is None
     try:
         if startpoint and not single_commit:

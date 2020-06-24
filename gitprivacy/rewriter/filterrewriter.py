@@ -1,45 +1,52 @@
-import git
+"""
+Bulk rewriting of Git history using git-filter-repo
+"""
+import git  # type: ignore
+import git_filter_repo as fr  # type: ignore
+
+from typing import Set
 
 from . import Rewriter
+from .. import utils
 from ..encoder import Encoder
 from ..dateredacter import DateRedacter
-from ..utils import fmtdate
 
 
-class FilterBranchRewriter(Rewriter):
-    """Redates commits using git filter-branch."""
+class FilterRepoRewriter(Rewriter):
+    """Redates commits using git-filter-repo."""
 
     def __init__(self, repo: git.Repo, encoder: Encoder) -> None:
         self.repo = repo
         self.encoder = encoder
-        self.env_cmd = ""
-        self.msg_cmd = ""
+        self.commits_to_rewrite: Set[str] = set()
 
 
     def update(self, commit: git.Commit) -> None:
-        a_redacted, c_redacted, msg_extra = self.encoder.encode(commit)
-        self.env_cmd += (
-            f"if test \"$GIT_COMMIT\" = \"{commit.hexsha}\"; then "
-            f"export GIT_AUTHOR_DATE=\"{fmtdate(a_redacted)}\"; "
-            f"export GIT_COMMITTER_DATE=\"{fmtdate(c_redacted)}\"; fi; "
+        self.commits_to_rewrite.add(commit.hexsha)
+
+    def _rewrite(self, commit: fr.Commit, metadata) -> None:
+        hexid = commit.original_id.decode()
+        if hexid not in self.commits_to_rewrite:
+            # do nothing
+            return
+        a_redacted, c_redacted, msg_extra = self.encoder.encode(
+            self.repo.commit(hexid)  # get pygit Commit object
         )
+        commit.author_date = utils.dt2gitdate(a_redacted).encode()
+        commit.committer_date = utils.dt2gitdate(c_redacted).encode()
         if msg_extra:
-            append_cmd = f"&& echo && echo \"{msg_extra}\""
-        else:
-            append_cmd = ""
-        self.msg_cmd += (
-            f"if test \"$GIT_COMMIT\" = \"{commit.hexsha}\"; then "
-            f"cat {append_cmd}; fi; "
-        )
+            commit.message += b"\n" + msg_extra.encode()
 
 
     def finish(self, rev: str) -> None:
-        filter_cmd = ["git", "filter-branch", "-f",
-                      "--env-filter", self.env_cmd,
-                      "--msg-filter", self.msg_cmd,
-                      "--",
-                      rev]
-        self.repo.git.execute(command=filter_cmd)
+        args = fr.FilteringOptions.parse_args([
+            '--source', self.repo.git_dir,
+            '--force',
+            '--quiet',
+            '--replace-refs', 'update-no-add',
+        ])
+        filter = fr.RepoFilter(args, commit_callback=self._rewrite)
+        filter.run()
 
 
     @staticmethod

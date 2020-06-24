@@ -9,4 +9,4 @@ class Rewriter(abc.ABC):
 
 
 from .amendrewriter import AmendRewriter
-from .filterrewriter import FilterBranchRewriter
+from .filterrewriter import FilterRepoRewriter
