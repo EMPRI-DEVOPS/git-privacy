@@ -31,12 +31,11 @@ class MessageEmbeddingEncoder(BasicEncoder):
             return ""
 
 
-    def decode(self, commit: git.Commit) -> Tuple[datetime, datetime]:
+    def decode(self, commit: git.Commit) -> Optional[Tuple[datetime, datetime]]:
         dec_dates = _decrypt_from_msg(self.crypto, commit.message)
         if dec_dates is None:
-            # decryption failed return redacted dates
-            return (commit.authored_datetime,
-                    commit.committed_datetime)
+            # decryption failed
+            return None
         return dec_dates
 
 

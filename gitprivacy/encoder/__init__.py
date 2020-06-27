@@ -1,7 +1,8 @@
 import abc
+import git  # type: ignore
+
 from datetime import datetime
-import git
-from typing import Tuple
+from typing import Optional, Tuple
 
 from ..dateredacter import DateRedacter
 
@@ -19,7 +20,7 @@ class Encoder(abc.ABC):
 
 
     @abc.abstractmethod
-    def decode(self, commit: git.Commit) -> Tuple[datetime, datetime]:
+    def decode(self, commit: git.Commit) -> Optional[Tuple[datetime, datetime]]:
         pass
 
 
