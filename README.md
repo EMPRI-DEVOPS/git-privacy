@@ -15,7 +15,7 @@ might need them.
 
     pip3 install gitprivacy
 
-Note: Git-privacy requires Python version 3.6 or later.
+Note: Git-privacy requires Python version 3.6 or later and Git version 2.22.0 or later.
 
 
 ## Getting Started
