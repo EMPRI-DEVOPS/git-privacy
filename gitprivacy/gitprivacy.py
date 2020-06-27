@@ -174,9 +174,8 @@ def do_log(ctx: click.Context, revision_range: str, paths: click.Path):
     buf = list()
     for commit in commit_list:
         buf.append(click.style(f"commit {commit.hexsha}", fg='yellow'))
-        dec_dates = encoder.decode(commit)
-        if dec_dates:
-            a_date, c_date = dec_dates
+        a_date, c_date = encoder.decode(commit)
+        if a_date:
             buf.append(f"Author:   {commit.author.name} <{commit.author.email}>")  # noqa: E501
             buf.append(click.style(f"Date: {fmtdate(commit.authored_datetime)}",  # noqa: E501)
                                    fg='red'))

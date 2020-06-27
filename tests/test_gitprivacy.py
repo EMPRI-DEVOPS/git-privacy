@@ -397,6 +397,30 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(real_ad, a.authored_datetime)
             self.assertEqual(real_cd, a.authored_datetime)
 
+    def test_msgembedciphercompatability(self):
+        import gitprivacy.encoder.msgembed as msgenc
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.git.config(["privacy.password", "foobar"])
+            self.git.config(["privacy.salt", "U16/n+bWLbp/MJ9DEo+Th+bbpJjYMZ7yQSUwJmk0QWQ="])
+            conf = GitPrivacyConfig(".")
+            crypto = conf.get_crypto()
+            # old combined cipher mode
+            ad, cd = msgenc._decrypt_from_msg(
+                crypto,
+                "a\n\nGitPrivacy: Tsfmwy/PQxvg5YkXT90G/7FmCYTzf1ionUnLAqCj08HMG6SAzTQSxLfoF/7OYMzHFXh6apb8OcqcIQY2fGnajGcrXauoQCMZYA==\n"
+            )
+            self.assertNotEqual(ad, None)
+            self.assertNotEqual(cd, None)
+            # separate cipher mode
+            ad, cd = msgenc._decrypt_from_msg(
+                crypto,
+                "b\n\nGitPrivacy: 5+cmNIqj6DgRj2e00gHvTI+Llok5eOI6+o59IlGaize/SDHkKrLssqdXd8qzE7sbN6s6l+gen8E= NlfePlKFKT3L/Twi/9BcF/1pJYz0xoedTs7veoeAA9zpzMPOjg9vxMle3oYoPEFbrGb9pOgHqcU=\n"
+            )
+            self.assertNotEqual(ad, None)
+            self.assertNotEqual(cd, None)
+
 
     def test_pwdmismatch(self):
         with self.runner.isolated_filesystem():

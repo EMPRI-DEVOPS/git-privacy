@@ -20,7 +20,7 @@ class Encoder(abc.ABC):
 
 
     @abc.abstractmethod
-    def decode(self, commit: git.Commit) -> Optional[Tuple[datetime, datetime]]:
+    def decode(self, commit: git.Commit) -> Tuple[Optional[datetime], Optional[datetime]]:
         pass
 
 
@@ -33,7 +33,7 @@ class BasicEncoder(Encoder):
                 msg_extra)
 
 
-    def decode(self, commit: git.Commit) -> Tuple[datetime, datetime]:
+    def decode(self, commit: git.Commit) -> Tuple[Optional[datetime], Optional[datetime]]:
         return (commit.authored_datetime,
                 commit.committed_datetime)
 
