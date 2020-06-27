@@ -183,6 +183,14 @@ def do_log(ctx: click.Context, revision_range: str, paths: click.Path):
         else:
             buf.append(f"Author: {commit.author.name} <{commit.author.email}>")
             buf.append(f"Date:   {fmtdate(commit.authored_datetime)}")
+        if c_date:
+            buf.append(f"Commit:   {commit.committer.name} <{commit.committer.email}>")  # noqa: E501
+            buf.append(click.style(f"Date: {fmtdate(commit.committed_datetime)}",  # noqa: E501)
+                                   fg='red'))
+            buf.append(click.style(f"RealDate: {fmtdate(c_date)}", fg='green'))
+        else:
+            buf.append(f"Commit: {commit.committer.name} <{commit.committer.email}>")
+            buf.append(f"Date:   {fmtdate(commit.committed_datetime)}")
         buf.append(os.linesep + f"    {commit.message}")
     click.echo_via_pager(os.linesep.join(buf))
 
