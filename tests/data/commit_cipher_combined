@@ -1,0 +1,15 @@
+blob
+mark :1
+data 0
+
+reset refs/heads/master
+commit refs/heads/master
+mark :2
+author Christian Burkert <burkert@informatik.uni-hamburg.de> 1593417600 +0200
+committer Christian Burkert <burkert@informatik.uni-hamburg.de> 1593417600 +0200
+data 116
+x
+
+GitPrivacy: d74YVg4JLrfHdGWgMaNunpyiG8oUw2V5gHEv539B7nFkExiGn0tSH/McUDGEpKdTvWAIUW4m38qCu7IbWLeBwkB4U143v9+yFQ==
+M 100644 :1 x
+

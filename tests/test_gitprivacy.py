@@ -1,4 +1,5 @@
 import click
+import copy
 import git  # type: ignore
 import locale
 import os
@@ -39,7 +40,6 @@ class TestGitPrivacy(unittest.TestCase):
         self.git.config(["privacy.pattern", "m,s"])
 
     def addCommit(self, filename: str) -> git.Commit:
-        import copy
         with open(filename, "w") as f:
             f.write(filename)
         self.git.add(filename)
@@ -364,8 +364,15 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output, "")
 
-    def test_encryptdates(self):
+    def get_real_dates(self, commit):
         import gitprivacy.encoder.msgembed as msgenc
+        conf = GitPrivacyConfig(".")
+        crypto = conf.get_crypto()
+        self.assertNotEqual(crypto, None)
+        encoder = msgenc.MessageEmbeddingEncoder(None, crypto)
+        return encoder.decode(commit)
+
+    def test_encryptdates(self):
         from gitprivacy import utils
         with self.runner.isolated_filesystem():
             self.setUpRepo()
@@ -389,11 +396,7 @@ class TestGitPrivacy(unittest.TestCase):
                 utils.gitdate2dt(utils.dt2gitdate(a.authored_datetime)),
             )
             ar = self.repo.head.commit
-            conf = GitPrivacyConfig(".")
-            crypto = conf.get_crypto()
-            self.assertNotEqual(crypto, None)
-            encoder = msgenc.MessageEmbeddingEncoder(None, crypto)
-            real_ad, real_cd = encoder.decode(ar)
+            real_ad, real_cd = self.get_real_dates(ar)
             self.assertEqual(real_ad, a.authored_datetime)
             self.assertEqual(real_cd, a.authored_datetime)
 
@@ -434,6 +437,118 @@ class TestGitPrivacy(unittest.TestCase):
             result = self.invoke('log')
             self.assertEqual(result.exit_code, 0)
             self.assertFalse("RealDate" in result.output)
+
+
+    def test_redatestability(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.git.config(["privacy.password", "passw0ord"])
+            a = self.addCommit("a")
+            result = self.invoke('redate --only-head')
+            self.assertEqual(result.exit_code, 0)
+            ar = self.repo.head.commit
+            self.assertNotEqual(a.hexsha, ar.hexsha)
+            # do nothing to the repo
+            result = self.invoke('redate --only-head')
+            self.assertEqual(result.exit_code, 0)
+            ar2 = self.repo.head.commit
+            # redate should not have altered anything
+            self.assertEqual(ar.message, ar2.message)
+            self.assertEqual(ar.hexsha, ar2.hexsha)
+
+
+    def test_commitdateupdate(self):
+        import gitprivacy.encoder.msgembed as msgenc
+        from gitprivacy import utils
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.git.config(["privacy.password", "passw0ord"])
+            a = self.addCommit("a")
+            result = self.invoke('redate --only-head')
+            self.assertEqual(result.exit_code, 0)
+            ar = self.repo.head.commit
+            real_ad, real_cd = self.get_real_dates(ar)
+            self.assertEqual(real_ad, a.authored_datetime)
+            self.assertEqual(real_cd, a.committed_datetime)
+            time.sleep(1)  # make sure update commit date is different
+            res, _, _ = self.git.commit([
+                "-m",  ar.message,
+                "--amend",
+            ], with_extended_output=True)
+            self.assertEqual(res, 0)
+            au = copy.copy(self.repo.head.commit)
+            # amend updated only commit date
+            self.assertEqual(au.authored_datetime, ar.authored_datetime)
+            self.assertNotEqual(au.committed_datetime, ar.committed_datetime)
+            self.assertEqual(ar.message, au.message)
+            result = self.invoke('redate --only-head')
+            self.assertEqual(result.exit_code, 0)
+            aur = copy.copy(self.repo.head.commit)
+            self.assertNotEqual(au.message, aur.message)
+            u_real_ad, u_real_cd = self.get_real_dates(aur)
+            self.assertEqual(au.authored_datetime, aur.authored_datetime)
+            self.assertNotEqual(au.committed_datetime, aur.committed_datetime)
+            self.assertEqual(u_real_ad, a.authored_datetime)
+            self.assertEqual(u_real_cd, au.committed_datetime)
+            self.assertEqual(real_ad, u_real_ad)
+            self.assertNotEqual(real_cd, u_real_cd)
+
+
+    def load_exported_commit(self, path):
+        from pkg_resources import resource_stream
+        with resource_stream('tests', path) as input_fd:
+            res, stdout, stderr = self.git.fast_import(
+                "--force",  # discard existing commits
+                istream=input_fd,
+                with_extended_output=True,
+            )
+        self.assertEqual(res, 0)
+
+
+    def test_cipherregression(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.git.config(["privacy.password", "foobar"])
+            self.git.config(["privacy.salt", "U16/n+bWLbp/MJ9DEo+Th+bbpJjYMZ7yQSUwJmk0QWQ="])
+            # combined cipher format
+            self.load_exported_commit('data/commit_cipher_combined')
+            c = self.repo.head.commit
+            real_ad, real_cd = self.get_real_dates(c)
+            tzinfo = timezone(timedelta(0, 7200))
+            self.assertEqual(real_ad, datetime(2020, 6, 29, 10, 6, 1, tzinfo=tzinfo))
+            self.assertEqual(real_cd, datetime(2020, 6, 29, 10, 6, 1, tzinfo=tzinfo))
+            # mixed cipher format
+            self.load_exported_commit('data/commit_cipher_mixed')
+            c = self.repo.head.commit
+            real_ad, real_cd = self.get_real_dates(c)
+            tzinfo = timezone(timedelta(0, 7200))
+            self.assertEqual(real_ad, datetime(2020, 6, 29, 10, 6, 1, tzinfo=tzinfo))
+            self.assertEqual(real_cd, datetime(2020, 6, 29, 11, 0, 24, tzinfo=tzinfo))
+            # dedicated cipher format
+            self.load_exported_commit('data/commit_cipher_dedicated')
+            c = self.repo.head.commit
+            real_ad, real_cd = self.get_real_dates(c)
+            tzinfo = timezone(timedelta(0, 7200))
+            self.assertEqual(real_ad, datetime(2020, 6, 29, 11, 3, 23, tzinfo=tzinfo))
+            self.assertEqual(real_cd, datetime(2020, 6, 29, 11, 23, 41, tzinfo=tzinfo))
+            # dedicated cipher format with different passwords
+            self.load_exported_commit('data/commit_cipher_diffpwds')
+            c = self.repo.head.commit
+            real_ad, real_cd = self.get_real_dates(c)
+            tzinfo = timezone(timedelta(0, 7200))
+            self.assertEqual(real_ad, datetime(2020, 6, 29, 17, 22, 1, tzinfo=tzinfo))
+            self.assertEqual(real_cd, None)  # diff password – not decryptable
+            self.git.config(["privacy.password", "foobaz"])
+            real_ad, real_cd = self.get_real_dates(c)
+            self.assertEqual(real_ad, None)  # diff password – not decryptable
+            self.assertEqual(real_cd, datetime(2020, 6, 29, 17, 23, 25, tzinfo=tzinfo))
+            self.git.config(["privacy.password", "foobauz"])
+            real_ad, real_cd = self.get_real_dates(c)
+            self.assertEqual(real_ad, None)  # diff password – not decryptable
+            self.assertEqual(real_cd, None)  # diff password – not decryptable
 
 
     def test_redactemail(self):

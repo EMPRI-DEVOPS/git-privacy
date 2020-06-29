@@ -2,7 +2,7 @@ import git  # type: ignore
 import re
 
 from datetime import datetime, timezone
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple, Union
 
 from . import Encoder, BasicEncoder
 from .. import utils
@@ -11,6 +11,7 @@ from ..dateredacter import DateRedacter
 
 
 MSG_TAG = "GitPrivacy: "
+TAG_REGEX = fr'^{MSG_TAG}(\S+)(?: (\S+))?'
 
 
 class MessageEmbeddingEncoder(BasicEncoder):
@@ -21,14 +22,25 @@ class MessageEmbeddingEncoder(BasicEncoder):
         self.crypto = crypto
 
 
-    def get_message_extra(self, commit: git.Commit) -> str:
+    def get_message_extra(self, commit: git.Commit) -> Union[
+        str,
+        Callable[[str], str]
+    ]:
+        """Get date ciphertext addition to commit message."""
         if not _contains_tag(commit):  # keep prior tag if already present
-            encdates = _encrypt_for_msg(self.crypto,
-                                    commit.authored_datetime,
-                                    commit.committed_datetime)
-            return f"{MSG_TAG}{encdates}"
+            # create new tag
+            a_date = _encrypt_for_msg(self.crypto, commit.authored_datetime)
+            c_date = _encrypt_for_msg(self.crypto, commit.committed_datetime)
+            return f"{MSG_TAG}{a_date} {c_date}"
         else:
-            return ""
+            # update the committer date ciphertext
+            ciphers = _extract_enc_dates(commit.message)
+            assert ciphers is not None  # we know it contains the tag
+            ad_cipher, _cd_cipher = ciphers
+            c_date = _encrypt_for_msg(self.crypto, commit.committed_datetime)
+            new_extra = f"{MSG_TAG}{ad_cipher} {c_date}"
+            return lambda msg: re.sub(TAG_REGEX, new_extra, msg,
+                                      flags=re.MULTILINE)
 
 
     def decode(self, commit: git.Commit) -> Tuple[Optional[datetime], Optional[datetime]]:
@@ -49,22 +61,16 @@ def _extract_enc_dates(msg: str) -> Optional[Tuple[str, Optional[str]]]:
     for line in msg.splitlines():
         # 2nd cipher is optional for backward compatability with
         # combined author and committer date ciphers
-        match = re.search(fr'^{MSG_TAG}(\S+)(?: (\S+))?', line)
+        match = re.search(TAG_REGEX, line)
         if match:
             ad_cipher, cd_cipher = match.groups()
             return (ad_cipher, cd_cipher)
     return None
 
 
-def _encrypt_for_msg(crypto: EncryptionProvider, a_date: datetime,
-                     c_date: datetime) -> str:
-    """Returns ciphertexts for author and committer date joined by a
-    whitespace."""
-    cipher = " ".join(
-        crypto.encrypt(utils.dt2gitdate(d))
-        for d in (a_date, c_date)
-    )
-    return cipher
+def _encrypt_for_msg(crypto: EncryptionProvider, date: datetime) -> str:
+    """Returns ciphertext date."""
+    return crypto.encrypt(utils.dt2gitdate(date))
 
 
 def _decrypt_from_msg(crypto: EncryptionProvider,
@@ -77,7 +83,9 @@ def _decrypt_from_msg(crypto: EncryptionProvider,
     if enc_cdate:
         # use separate committer date
         raw_cdate = crypto.decrypt(enc_cdate)
-        assert raw_adate is None or ";" not in raw_adate
+        if raw_adate and ";" in raw_adate:
+            # discard combined committer date for newer separate
+            raw_adate, _ = raw_adate.split(";")
     elif raw_adate and not enc_cdate:
         # combined cipher compatability mode
         assert ";" in raw_adate
@@ -90,6 +98,7 @@ def _decrypt_from_msg(crypto: EncryptionProvider,
     a_date = None
     c_date = None
     if raw_adate:
+        assert ";" not in raw_adate
         a_date = utils.gitdate2dt(raw_adate)
     if raw_cdate:
         c_date = utils.gitdate2dt(raw_cdate)

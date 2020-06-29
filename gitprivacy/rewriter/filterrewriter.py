@@ -29,13 +29,12 @@ class FilterRepoRewriter(Rewriter):
         if hexid not in self.commits_to_rewrite:
             # do nothing
             return
-        a_redacted, c_redacted, msg_extra = self.encoder.encode(
-            self.repo.commit(hexid)  # get pygit Commit object
-        )
+        g_commit = self.repo.commit(hexid)  # get pygit Commit object
+        a_redacted, c_redacted, new_msg = self.encoder.encode(g_commit)
         commit.author_date = utils.dt2gitdate(a_redacted).encode()
         commit.committer_date = utils.dt2gitdate(c_redacted).encode()
-        if msg_extra:
-            commit.message += b"\n" + msg_extra.encode()
+        if new_msg:
+            commit.message = new_msg.encode()
 
 
     def finish(self, rev: str) -> None:

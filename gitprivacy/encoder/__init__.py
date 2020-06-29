@@ -2,7 +2,7 @@ import abc
 import git  # type: ignore
 
 from datetime import datetime
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple, Union
 
 from ..dateredacter import DateRedacter
 
@@ -27,10 +27,24 @@ class Encoder(abc.ABC):
 class BasicEncoder(Encoder):
     """Basic commit encoder that only inserts redacted dates."""
     def encode(self, commit: git.Commit) -> Tuple[datetime, datetime, str]:
+        new_ad = self.redacter.redact(commit.authored_datetime)
+        new_cd = self.redacter.redact(commit.committed_datetime)
+        if (new_ad == commit.authored_datetime and
+                new_cd == commit.committed_datetime):
+            # already redacted – nothing to do
+            return (new_ad, new_cd, "")
         msg_extra = self.get_message_extra(commit)
-        return (self.redacter.redact(commit.authored_datetime),
-                self.redacter.redact(commit.committed_datetime),
-                msg_extra)
+        new_msg = ""  # signifies no change to old message
+        if isinstance(msg_extra, str):
+            if msg_extra:
+                new_msg = "\n".join((commit.message, msg_extra))
+        elif callable(msg_extra):
+            rpl_msg = msg_extra(commit.message)
+            if rpl_msg != commit.message:
+                new_msg = rpl_msg
+        else:
+            raise TypeError("Unexpected msg_extra type")
+        return (new_ad, new_cd, new_msg)
 
 
     def decode(self, commit: git.Commit) -> Tuple[Optional[datetime], Optional[datetime]]:
@@ -38,7 +52,10 @@ class BasicEncoder(Encoder):
                 commit.committed_datetime)
 
 
-    def get_message_extra(self, commit: git.Commit) -> str:
+    def get_message_extra(self, commit: git.Commit) -> Union[
+        str,
+        Callable[[str], str]
+    ]:
         return ""
 
 

@@ -1,4 +1,4 @@
-import git
+import git  # type: ignore
 import os
 
 from . import Rewriter
@@ -16,17 +16,16 @@ class AmendRewriter(Rewriter):
 
     def rewrite(self) -> None:
         commit = self.repo.commit("HEAD")
-        a_redacted, c_redacted, msg_extra = self.encoder.encode(commit)
+        a_redacted, c_redacted, new_msg = self.encoder.encode(commit)
         cmd = [
             "git", "commit", "--amend", "--allow-empty",
             # skip repeated pre-commit hook to avoid gitpython locale issues
             "--no-verify",
             f"--date=\"{fmtdate(a_redacted)}\"",
         ]
-        if msg_extra:
+        if new_msg:
             cmd += [
-                f"--message={commit.message}",
-                f"--message={msg_extra}",
+                f"--message={new_msg}",
             ]
         else:
             cmd.append("--no-edit")
