@@ -37,7 +37,7 @@ class FilterRepoRewriter(Rewriter):
             commit.message = new_msg.encode()
 
 
-    def finish(self, rev: str) -> None:
+    def finish(self) -> None:
         args = fr.FilteringOptions.parse_args([
             '--source', self.repo.git_dir,
             '--force',

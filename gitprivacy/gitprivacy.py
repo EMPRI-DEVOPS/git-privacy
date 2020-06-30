@@ -275,7 +275,7 @@ def do_redate(ctx: click.Context, startpoint: str,
     with click.progressbar(commits, label="Redating commits") as bar:
         for commit in bar:
             rewriter.update(commit)
-    rewriter.finish(rev)
+    rewriter.finish()
 
 
 @cli.command('redate-rewrites')
@@ -315,7 +315,7 @@ def redate_rewrites(ctx: click.Context):
     with click.progressbar(commits, label="Redating commits") as bar:
         for commit in bar:
             rewriter.update(commit)
-    rewriter.finish("HEAD")  # TODO does HEAD include all possible rewrite refs?
+    rewriter.finish()
     os.remove(rewrites_log_path)
 
 
