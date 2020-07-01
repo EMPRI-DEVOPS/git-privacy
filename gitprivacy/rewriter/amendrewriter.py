@@ -24,9 +24,7 @@ class AmendRewriter(Rewriter):
             f"--date=\"{fmtdate(a_redacted)}\"",
         ]
         if new_msg:
-            cmd += [
-                f"--message={new_msg}",
-            ]
+            cmd.append(f"--message={new_msg}")
         else:
             cmd.append("--no-edit")
         self.repo.git.execute(
