@@ -377,6 +377,12 @@ def check_timezone_changes(ctx: click.Context) -> bool:
 @click.pass_context
 def log_rewrites(ctx: click.Context, rewrites: TextIO, type: str):
     """Log rewrites for later redating of necessary."""
+    # check if post-rewrites is triggered as result of AmendRewriter
+    if AmendRewriter.is_already_active():
+        # no need to log own amends
+        assert type == "amend"
+        ctx.exit(0)
+    # log rewrites
     repo: git.Repo = ctx.obj.repo
     redacter = ctx.obj.get_dateredacter()
     subdir = _create_git_subdir(repo)
