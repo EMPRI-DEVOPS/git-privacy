@@ -10,11 +10,6 @@ from ..utils import fmtdate
 class AmendRewriter(Rewriter):
     """Redates commits using git commit --amend."""
 
-    def __init__(self, repo: git.Repo, encoder: Encoder) -> None:
-        self.repo = repo
-        self.encoder = encoder
-
-
     def rewrite(self) -> None:
         commit = self.repo.commit("HEAD")
         a_redacted, c_redacted, new_msg = self.encoder.encode(commit)
@@ -43,6 +38,18 @@ class AmendRewriter(Rewriter):
             print(stdout)
         if stderr:
             print(stderr, file=sys.stderr)
+
+        # map replacement
+        if self.replace:
+            new_commit = self.repo.head.commit
+            assert commit.hexsha != new_commit.hexsha
+            res, _, err = self.repo.git.replace(
+                commit.hexsha,
+                new_commit.hexsha,
+                with_extended_output=True,
+            )
+            if res != 0:
+                raise RuntimeError(err)
 
 
     @staticmethod

@@ -15,9 +15,9 @@ from ..dateredacter import DateRedacter
 class FilterRepoRewriter(Rewriter):
     """Redates commits using git-filter-repo."""
 
-    def __init__(self, repo: git.Repo, encoder: Encoder) -> None:
-        self.repo = repo
-        self.encoder = encoder
+    def __init__(self, repo: git.Repo, encoder: Encoder,
+                 replace: bool = False) -> None:
+        super().__init__(repo, encoder, replace)
         self.commits_to_rewrite: Set[str] = set()
 
 
@@ -38,11 +38,15 @@ class FilterRepoRewriter(Rewriter):
 
 
     def finish(self) -> None:
+        if self.replace:
+            replace_opt = "update-or-add"
+        else:
+            replace_opt = "update-no-add"
         args = fr.FilteringOptions.parse_args([
             '--source', self.repo.git_dir,
             '--force',
             '--quiet',
-            '--replace-refs', 'update-no-add',
+            '--replace-refs', replace_opt,
         ])
         filter = fr.RepoFilter(args, commit_callback=self._rewrite)
         filter.run()

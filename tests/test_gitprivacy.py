@@ -788,6 +788,39 @@ class TestGitPrivacy(unittest.TestCase):
         except git.exc.GitCommandError:
             return True  # cannot even find commit anymore
 
+    def test_replace(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.git.config(["privacy.replacements", "true"])
+            # test replacement set by FilterRepoRewriter
+            a = self.addCommit("a")
+            result = self.invoke('redate')
+            self.assertEqual(result.exit_code, 0)
+            ar = self.repo.head.commit
+            self.assertNotEqual(a, ar)
+            rpls = self.git.replace("-l", "--format=medium").splitlines()
+            self.assertEqual(len(rpls), 1)
+            self.assertIn(f"{a.hexsha} -> {ar.hexsha}", rpls)
+            # test replacement set by AmendRewriter
+            b = self.addCommit("b")
+            result = self.invoke('redate --only-head')
+            self.assertEqual(result.exit_code, 0)
+            br = self.repo.head.commit
+            self.assertNotEqual(b, br)
+            rpls = self.git.replace("-l", "--format=medium").splitlines()
+            self.assertEqual(len(rpls), 2)
+            self.assertIn(f"{b.hexsha} -> {br.hexsha}", rpls)
+            # test without replacements
+            self.git.config(["--unset", "privacy.replacements"])
+            self.addCommit("c")
+            result = self.invoke('redate')
+            self.assertEqual(result.exit_code, 0)
+            self.addCommit("d")
+            result = self.invoke('redate --only-head')
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(len(rpls), 2)  # no further replacements
+
 
 if __name__ == '__main__':
     unittest.main()

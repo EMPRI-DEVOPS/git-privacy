@@ -38,9 +38,10 @@ class GitPrivacyConfig(object):
             self.limit = config.get_value(self.SECTION, 'limit', '')
             self.password = config.get_value(self.SECTION, 'password', '')
             self.salt = config.get_value(self.SECTION, 'salt', '')
-            self.ignoreTimezone = bool(config.get_value(self.SECTION,
-                                                        'ignoreTimezone',
-                                                        True))
+            self.ignoreTimezone = bool(config.get_value(
+                self.SECTION, 'ignoreTimezone', True))
+            self.replace = bool(config.get_value(
+                self.SECTION, 'replacements', False))
 
     def get_crypto(self) -> Optional[EncryptionProvider]:
         if not self.password:
@@ -238,7 +239,7 @@ def do_redate(ctx: click.Context, startpoint: str,
         encoder = BasicEncoder(redacter)
 
     if only_head:  # use AmendRewriter to allow redates in dirty dirs
-        amendrewriter = AmendRewriter(repo, encoder)
+        amendrewriter = AmendRewriter(repo, encoder, ctx.obj.replace)
         if amendrewriter.is_already_active():
             return  # avoid cyclic invocation by post-commit hook
         amendrewriter.rewrite()
@@ -247,7 +248,7 @@ def do_redate(ctx: click.Context, startpoint: str,
     if repo.is_dirty():
         click.echo(f"Cannot redate: You have unstaged changes.", err=True)
         ctx.exit(1)
-    rewriter = FilterRepoRewriter(repo, encoder)
+    rewriter = FilterRepoRewriter(repo, encoder, ctx.obj.replace)
     single_commit = next(repo.head.commit.iter_parents(), None) is None
     try:
         if startpoint and not single_commit:
@@ -309,7 +310,7 @@ def redate_rewrites(ctx: click.Context):
         encoder: Encoder = MessageEmbeddingEncoder(redacter, crypto)
     else:
         encoder = BasicEncoder(redacter)
-    rewriter = FilterRepoRewriter(repo, encoder)
+    rewriter = FilterRepoRewriter(repo, encoder, ctx.obj.replace)
 
     commits = map(repo.commit, pending)  # get Commit objects from hashes
     with click.progressbar(commits, label="Redating commits") as bar:
