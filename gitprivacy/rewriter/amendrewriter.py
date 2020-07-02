@@ -1,5 +1,6 @@
 import git  # type: ignore
 import os
+import sys
 
 from . import Rewriter
 from ..encoder import Encoder
@@ -27,13 +28,21 @@ class AmendRewriter(Rewriter):
             cmd.append(f"--message={new_msg}")
         else:
             cmd.append("--no-edit")
-        self.repo.git.execute(
+        res, stdout, stderr = self.repo.git.execute(
             command=cmd,
             env=dict(
                 GIT_COMMITTER_DATE=fmtdate(c_redacted),
                 GITPRIVACY_ACTIVE="yes",
             ),
+            with_extended_output=True,
         )
+        # forward outputs to stdout/stderr
+        # Note: This indirection is necessary since git.execute does not allow
+        # for passing stdout/stderr directly
+        if stdout:
+            print(stdout)
+        if stderr:
+            print(stderr, file=sys.stderr)
 
 
     @staticmethod
