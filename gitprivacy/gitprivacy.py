@@ -414,7 +414,7 @@ def _parse_post_rewrite_format(line: str) -> Tuple[str, str, str]:
     if n_vals == 2:
         # pad to length 3
         vals.append("")
-    return (vals[0], vals[1], vals[2])
+    return (vals[0].strip(), vals[1].strip(), vals[2])
 
 
 def _has_dirtydate(repo: git.Repo, redacter: DateRedacter,
