@@ -19,7 +19,7 @@ class AmendRewriter(Rewriter):
         commit = self.repo.commit("HEAD")
         a_redacted, c_redacted, new_msg = self.encoder.encode(commit)
         cmd = [
-            "git", "commit", "--amend", "--allow-empty",
+            "git", "commit", "--amend", "--allow-empty", "--quiet",
             # skip repeated pre-commit hook to avoid gitpython locale issues
             "--no-verify",
             f"--date=\"{fmtdate(a_redacted)}\"",
