@@ -11,16 +11,19 @@ import sys
 from datetime import datetime, timezone
 from typing import Optional, TextIO, Tuple
 
+
+from . import GIT_SUBDIR
+from . import crypto as crypt
 from .cli import email
+from .cli import keys
 from .cli.utils import assertCommits
-from .crypto import EncryptionProvider, PasswordSecretBox
 from .dateredacter import DateRedacter, ResolutionDateRedacter
-from .encoder import Encoder, BasicEncoder, MessageEmbeddingEncoder
+from .encoder import (
+    Encoder, BasicEncoder, MessageEmbeddingEncoder,
+    Decoder, BasicDecoder, MessageEmbeddingDecoder,
+)
 from .rewriter import AmendRewriter, FilterRepoRewriter
 from .utils import fmtdate
-
-
-GIT_SUBDIR = "privacy"  # subdir in .git used for storing state
 
 
 class GitPrivacyConfig(object):
@@ -43,13 +46,25 @@ class GitPrivacyConfig(object):
             self.replace = bool(config.get_value(
                 self.SECTION, 'replacements', False))
 
-    def get_crypto(self) -> Optional[EncryptionProvider]:
-        if not self.password:
-            return None
-        elif self.password and not self.salt:
-            self.salt = PasswordSecretBox.generate_salt()
-            self.write_config(salt=self.salt)
-        return PasswordSecretBox(self.salt, str(self.password))
+    def get_crypto(self) -> Optional[crypt.EncryptionProvider]:
+        if self.password:
+            if not self.salt:
+                self.salt = crypt.PasswordSecretBox.generate_salt()
+                self.write_config(salt=self.salt)
+            return crypt.PasswordSecretBox(self.salt, str(self.password))
+        key = keys.get_active_key(self.repo.git_dir)
+        archive = keys.get_archived_keys(self.repo.git_dir)
+        if key:
+            return crypt.MultiSecretBox(key=key, keyarchive=archive)
+        return None
+
+    def get_decrypto(self) -> Optional[crypt.DecryptionProvider]:
+        # try to get a EncryptionProvider, then fallback to DecryptionProvider
+        crypto = self.get_crypto()
+        if crypto:
+            return crypto
+        archive = keys.get_archived_keys(self.repo.git_dir)
+        return crypt.MultiSecretDecryptor(keyarchive=archive)
 
     def get_dateredacter(self) -> DateRedacter:
         if self.mode == "reduce" and self.pattern == '':
@@ -68,7 +83,18 @@ class GitPrivacyConfig(object):
         """Write config"""
         with self.repo.config_writer(config_level='repository') as writer:
             for key, value in kwargs.items():
-                writer.set_value("privacy", key, value)
+                writer.set_value(self.SECTION, key, value)
+
+    def comment_out_password_options(self):
+        with self.repo.config_writer() as config:
+            if self.password:
+                config.remove_option(self.SECTION, 'password')
+                config.set_value(self.SECTION, "#password", self.password)
+                self.password = ""
+            if self.salt:
+                config.remove_option(self.SECTION, 'salt')
+                config.set_value(self.SECTION, "#salt", self.salt)
+                self.salt = ""
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -169,17 +195,17 @@ def do_log(ctx: click.Context, revision_range: str, paths: click.Path):
     """Display a git-log-like history."""
     assertCommits(ctx)
     repo = ctx.obj.repo
-    redacter = ResolutionDateRedacter()
-    crypto = ctx.obj.get_crypto()
+    crypto: crypt.DecryptionProvider = ctx.obj.get_decrypto()
+    #keys._check_abort_passwordbased(ctx, crypto)
     if crypto:
-        encoder: Encoder = MessageEmbeddingEncoder(redacter, crypto)
+        decoder: Decoder = MessageEmbeddingDecoder(crypto)
     else:
-        encoder = BasicEncoder(redacter)
+        decoder = BasicDecoder()
     commit_list = list(repo.iter_commits(rev=revision_range, paths=paths))
     buf = list()
     for commit in commit_list:
         buf.append(click.style(f"commit {commit.hexsha}", fg='yellow'))
-        a_date, c_date = encoder.decode(commit)
+        a_date, c_date = decoder.decode(commit)
         if a_date:
             buf.append(f"Author:   {commit.author.name} <{commit.author.email}>")  # noqa: E501
             buf.append(click.style(f"Date: {fmtdate(commit.authored_datetime)}",  # noqa: E501)
@@ -233,6 +259,7 @@ def do_redate(ctx: click.Context, startpoint: str,
         ctx.exit(5)
     redacter = ctx.obj.get_dateredacter()
     crypto = ctx.obj.get_crypto()
+    keys._check_migrate_passwordbased(ctx, crypto)
     if crypto:
         encoder: Encoder = MessageEmbeddingEncoder(redacter, crypto)
     else:
@@ -306,6 +333,7 @@ def redate_rewrites(ctx: click.Context):
 
     redacter = ctx.obj.get_dateredacter()
     crypto = ctx.obj.get_crypto()
+    keys._check_migrate_passwordbased(ctx, crypto)
     if crypto:
         encoder: Encoder = MessageEmbeddingEncoder(redacter, crypto)
     else:
@@ -445,3 +473,4 @@ def _has_dirtydate(repo: git.Repo, redacter: DateRedacter,
 
 
 cli.add_command(email.redact_email)
+cli.add_command(keys.manage_keys)

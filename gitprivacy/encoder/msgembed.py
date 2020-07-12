@@ -1,12 +1,12 @@
 import git  # type: ignore
 import re
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Callable, Optional, Tuple, Union
 
-from . import Encoder, BasicEncoder
+from . import BasicEncoder, Decoder
 from .. import utils
-from ..crypto import EncryptionProvider
+from ..crypto import DecryptionProvider, EncryptionProvider
 from ..dateredacter import DateRedacter
 
 
@@ -23,8 +23,8 @@ class MessageEmbeddingEncoder(BasicEncoder):
 
 
     def get_message_extra(self, commit: git.Commit) -> Union[
-        str,
-        Callable[[str], str]
+            str,
+            Callable[[str], str],
     ]:
         """Get date ciphertext addition to commit message."""
         if not _contains_tag(commit):  # keep prior tag if already present
@@ -32,24 +32,28 @@ class MessageEmbeddingEncoder(BasicEncoder):
             a_date = _encrypt_for_msg(self.crypto, commit.authored_datetime)
             c_date = _encrypt_for_msg(self.crypto, commit.committed_datetime)
             return f"{MSG_TAG}{a_date} {c_date}"
-        else:
-            # update the committer date ciphertext
-            ciphers = _extract_enc_dates(commit.message)
-            assert ciphers is not None  # we know it contains the tag
-            ad_cipher, _cd_cipher = ciphers
-            c_date = _encrypt_for_msg(self.crypto, commit.committed_datetime)
-            new_extra = f"{MSG_TAG}{ad_cipher} {c_date}"
-            return lambda msg: re.sub(TAG_REGEX, new_extra, msg,
-                                      flags=re.MULTILINE)
+        # update the committer date ciphertext
+        ciphers = _extract_enc_dates(commit.message)
+        assert ciphers is not None  # we know it contains the tag
+        ad_cipher, _cd_cipher = ciphers
+        c_date = _encrypt_for_msg(self.crypto, commit.committed_datetime)
+        new_extra = f"{MSG_TAG}{ad_cipher} {c_date}"
+        return lambda msg: re.sub(TAG_REGEX, new_extra, msg,
+                                  flags=re.MULTILINE)
 
 
-    def decode(self, commit: git.Commit) -> Tuple[Optional[datetime], Optional[datetime]]:
+class MessageEmbeddingDecoder(Decoder):
+    def __init__(self, crypto: DecryptionProvider) -> None:
+        self.crypto = crypto
+
+    def decode(self, commit: git.Commit) -> Tuple[Optional[datetime],
+                                                  Optional[datetime]]:
         return _decrypt_from_msg(self.crypto, commit.message)
 
 
 def _contains_tag(commit: git.Commit):
     return any([line.startswith(MSG_TAG)
-               for line in commit.message.splitlines()])
+                for line in commit.message.splitlines()])
 
 
 def _extract_enc_dates(msg: str) -> Optional[Tuple[str, Optional[str]]]:
@@ -73,8 +77,10 @@ def _encrypt_for_msg(crypto: EncryptionProvider, date: datetime) -> str:
     return crypto.encrypt(utils.dt2gitdate(date))
 
 
-def _decrypt_from_msg(crypto: EncryptionProvider,
-                      message: str) -> Tuple[Optional[datetime], Optional[datetime]]:
+def _decrypt_from_msg(crypto: DecryptionProvider, message: str) -> Tuple[
+        Optional[datetime],
+        Optional[datetime],
+]:
     enc_dates = _extract_enc_dates(message)
     if crypto is None or enc_dates is None:
         return (None, None)

@@ -371,8 +371,8 @@ class TestGitPrivacy(unittest.TestCase):
         conf = GitPrivacyConfig(".")
         crypto = conf.get_crypto()
         self.assertNotEqual(crypto, None)
-        encoder = msgenc.MessageEmbeddingEncoder(None, crypto)
-        return encoder.decode(commit)
+        decoder = msgenc.MessageEmbeddingDecoder(crypto)
+        return decoder.decode(commit)
 
     def test_encryptdates(self):
         from gitprivacy import utils
@@ -785,7 +785,7 @@ class TestGitPrivacy(unittest.TestCase):
     def _is_loose(self, commit) -> bool:
         try:
             return self.git.branch("--contains", commit.hexsha) == ""
-        except git.exc.GitCommandError:
+        except git.GitCommandError:
             return True  # cannot even find commit anymore
 
     def test_replace(self):
