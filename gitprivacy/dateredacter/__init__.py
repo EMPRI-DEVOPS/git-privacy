@@ -7,7 +7,7 @@ class DateRedacter(abc.ABC):
 
     @abc.abstractmethod
     def redact(self, timestamp: datetime) -> datetime:
-        pass
+        """Redact timestamp."""
 
 
 from .reduce import ResolutionDateRedacter

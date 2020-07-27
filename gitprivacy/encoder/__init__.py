@@ -11,7 +11,7 @@ class Encoder(abc.ABC):
     """Abstract commit encoder."""
     @abc.abstractmethod
     def encode(self, commit: git.Commit) -> Tuple[datetime, datetime, str]:
-        pass
+        """Encode commit."""
 
 
 class Decoder(abc.ABC):
@@ -19,7 +19,7 @@ class Decoder(abc.ABC):
     @abc.abstractmethod
     def decode(self, commit: git.Commit) -> Tuple[Optional[datetime],
                                                   Optional[datetime]]:
-        pass
+        """Decode commit."""
 
 
 class BasicEncoder(Encoder):

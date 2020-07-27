@@ -7,7 +7,6 @@ class DecryptionProvider(abc.ABC):
     @abc.abstractmethod
     def decrypt(self, data: str) -> Optional[str]:
         """Tries to decrypt Base64-encoded string and return plaintext or None."""
-        pass
 
 
 class EncryptionProvider(DecryptionProvider):
@@ -15,7 +14,6 @@ class EncryptionProvider(DecryptionProvider):
     @abc.abstractmethod
     def encrypt(self, data: str) -> str:
         """Encrypts data and returns an Base64-encoded string"""
-        pass
 
 
 from .secretbox import SecretBox
