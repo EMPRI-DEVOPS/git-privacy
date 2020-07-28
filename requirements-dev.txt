@@ -1,0 +1,11 @@
+# Testing
+pytest
+pytest-cov
+
+# Linter, etc
+pylint
+
+# Building releases
+setuptools
+wheel
+twine
