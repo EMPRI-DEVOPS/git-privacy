@@ -32,7 +32,7 @@ class GitPrivacyConfig(object):
     def __init__(self, gitdir: str) -> None:
         self.gitdir = gitdir
         try:
-            self.repo = git.Repo(gitdir)
+            self.repo = git.Repo(gitdir, search_parent_directories=True)
         except git.InvalidGitRepositoryError as e:
             raise click.UsageError("not a git repository: '{}'".format(e))
         with self.repo.config_reader() as config:
