@@ -22,7 +22,11 @@ _Note: `git-privacy` requires Python version 3.6 or later and Git version 2.22.0
 
 ## Getting Started
 
-To setup `git-privacy` for a Git repository follow these instructions:
+You can either setup `git-privacy` separately for selected Git repositories or
+globally so that each new Git repo automatically uses `git-privacy` from the
+beginning.
+
+To setup `git-privacy` for a _single Git repository_ do the following:
 
 1. Initialise `git-privacy`, which sets the necessary hooks.
 
@@ -51,6 +55,38 @@ To setup `git-privacy` for a Git repository follow these instructions:
    For more information about managing encryption keys see `git-privacy keys -h`.
 
 4. Use Git as normal ;-)
+
+To setup `git-privacy` _globally for all new repositories_ do the following:
+
+1. Initialise `git-privacy` to set the necessary hooks globally (in a Git
+   template directory).
+
+       $ git-privacy init --global
+
+2. Set a global redaction pattern from the following options:
+      - M: Sets the month to January
+      - d: Sets the day to the first day of the month
+      - h: Sets the hour to midnight
+      - m: Sets the minute to zero (full hour)
+      - s: Sets the seconds to zero (full minute)
+
+
+       $ git config --global privacy.pattern <pattern>
+
+   For example:
+
+       $ git config --global privacy.pattern hms
+
+3. Use Git to init or clone repos as usual and `git-privacy` will redact
+   timestamps for you :-)
+
+4. **Per individual repo:** Set an encryption key if you want to preserve the original timestamps in
+   encrypted form in the commit message.
+   If no key is set, only the reduced timestamp will remain.
+
+       $ git-privacy keys --init
+
+   For more information about managing encryption keys see `git-privacy keys -h`.
 
 For an overview of further features and options read the following sections.
 
