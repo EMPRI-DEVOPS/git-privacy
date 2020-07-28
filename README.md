@@ -42,11 +42,13 @@ To setup `git-privacy` for a Git repository follow these instructions:
 
        $ git config privacy.pattern hms
 
-3. Set a password if you want to preserve the original timestamps in
+3. Set an encryption key if you want to preserve the original timestamps in
    encrypted form in the commit message.
-   If no password is given, only the reduced timestamp will remain.
+   If no key is set, only the reduced timestamp will remain.
 
-       $ git config privacy.password <password>
+       $ git-privacy keys --init
+
+   For more information about managing encryption keys see `git-privacy keys -h`.
 
 4. Use Git as normal ;-)
 
@@ -95,8 +97,8 @@ To view the unredacted commit dates, `git-privacy` offers a git-log-like listing
 
     $ git-privacy log
 
-_Note: Unredacted dates are only preserved if you specify a password in the
-config which allows `git-privacy` to store the encrypted dates in the commit
+_Note: Unredacted dates are only preserved if you set an encryption key
+which allows `git-privacy` to store the encrypted dates in the commit
 message._
 
 ### Redate after Rebases and other Rewrites
@@ -177,6 +179,9 @@ By default limits are disabled.
 Currently, only the `reduce` mode is supported. Default is `reduce`.
 
 ### `privacy.password`
+_**Deprecated**: Since version 2.0, `git-privacy` uses key files to encrypt
+dates and will automatically migrate from passwords to the new format._
+
 This specifies the password used to encrypt the original timestamps.
 If no password is given, original timestamps will not be preserved.
 
@@ -200,6 +205,9 @@ If true, `git-privacy` creates a replacement mapping ([git-replace(1)](https://g
 for each commit that is rewritten by a redate. Default is false.
 
 ### `privacy.salt`
+_**Deprecated**: Since version 2.0, `git-privacy` uses key files to encrypt
+dates and will automatically migrate to the new format._
+
 This is an auto-generated value created by `git-privacy` if `password` is set
 by the user. It should not be altered by the user.
 
