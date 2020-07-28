@@ -5,8 +5,9 @@ import os
 from typing import Iterator, Tuple
 
 import gitprivacy as gp
-import gitprivacy.gitprivacy as gpm
-import gitprivacy.crypto as gpcrypto
+
+from .. import crypto as gpcrypto
+from .. import gitprivacy as gpm
 
 
 KEY_DIR = os.path.join(gp.GIT_SUBDIR, "keys")
