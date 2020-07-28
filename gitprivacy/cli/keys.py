@@ -2,7 +2,7 @@ import click
 import git  # type: ignore
 import os
 
-from typing import Iterator, List, Tuple
+from typing import Iterator, Tuple
 
 import gitprivacy as gp
 import gitprivacy.gitprivacy as gpm
@@ -28,10 +28,11 @@ KEY_ARCHIVE = os.path.join(KEY_DIR, "archive")
 @click.pass_context
 def manage_keys(ctx: click.Context, mode: str, no_archive: bool) -> None:
     """Create and manage encryption keys."""
+    # pylint: disable=too-many-branches
     repo: git.Repo = ctx.obj.repo
     gpm._create_git_subdir(repo)
     base = repo.git_dir
-    keydir, archivedir = _setup_keydir(base)
+    _keydir, archivedir = _setup_keydir(base)
     cur_path = os.path.join(base, KEY_CURRENT)
     archive = not no_archive
 
@@ -179,4 +180,3 @@ def get_archived_keys(base: str) -> Iterator[str]:
         with open(path) as f:
             key = f.read()
         yield key
-
