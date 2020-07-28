@@ -1,8 +1,10 @@
+# pylint: disable=invalid-name,too-many-public-methods,line-too-long
 import click
 import copy
 import git  # type: ignore
 import locale
 import os
+import pathlib
 import time
 import unittest
 
@@ -426,6 +428,37 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertNotEqual(ad, None)
             self.assertNotEqual(cd, None)
 
+    def test_msgembedciphercompatability_keyfile(self):
+        import gitprivacy.crypto as gpcrypto
+        import gitprivacy.encoder.msgembed as msgenc
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.git.config(["privacy.password", "foobar"])
+            self.git.config(["privacy.salt", "U16/n+bWLbp/MJ9DEo+Th+bbpJjYMZ7yQSUwJmk0QWQ="])
+            # migrate to keyfile
+            result = self.invoke('keys --migrate-pwd')
+            self.assertEqual(result.exit_code, 0)
+            conf = GitPrivacyConfig(".")
+            self.assertEqual(conf.password, "")
+            self.assertEqual(conf.salt, "")
+            crypto = conf.get_crypto()
+            self.assertIsInstance(crypto, gpcrypto.MultiSecretBox)
+            # old combined cipher mode
+            ad, cd = msgenc._decrypt_from_msg(
+                crypto,
+                "a\n\nGitPrivacy: Tsfmwy/PQxvg5YkXT90G/7FmCYTzf1ionUnLAqCj08HMG6SAzTQSxLfoF/7OYMzHFXh6apb8OcqcIQY2fGnajGcrXauoQCMZYA==\n"
+            )
+            self.assertNotEqual(ad, None)
+            self.assertNotEqual(cd, None)
+            # separate cipher mode
+            ad, cd = msgenc._decrypt_from_msg(
+                crypto,
+                "b\n\nGitPrivacy: 5+cmNIqj6DgRj2e00gHvTI+Llok5eOI6+o59IlGaize/SDHkKrLssqdXd8qzE7sbN6s6l+gen8E= NlfePlKFKT3L/Twi/9BcF/1pJYz0xoedTs7veoeAA9zpzMPOjg9vxMle3oYoPEFbrGb9pOgHqcU=\n"
+            )
+            self.assertNotEqual(ad, None)
+            self.assertNotEqual(cd, None)
+
 
     def test_pwdmismatch(self):
         with self.runner.isolated_filesystem():
@@ -820,6 +853,96 @@ class TestGitPrivacy(unittest.TestCase):
             result = self.invoke('redate --only-head')
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(len(rpls), 2)  # no further replacements
+
+    def test_pwdmigration(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.git.config(["privacy.password", "foobar"])
+            self.git.config(["privacy.salt", "U16/n+bWLbp/MJ9DEo+Th+bbpJjYMZ7yQSUwJmk0QWQ="])
+            # any non-migrate command should fail – since there is still a
+            # password set in the config
+            result = self.invoke('keys --init')
+            self.assertEqual(result.exit_code, 1)
+            self.assertFalse(os.path.isfile(".git/privacy/keys/current"))
+            # ... then migrate
+            result = self.invoke('keys --migrate-pwd')
+            self.assertEqual(result.exit_code, 0)
+            self.assertTrue(os.path.isfile(".git/privacy/keys/current"))
+            # password and salt config settings are gone (commented out)
+            with self.repo.config_reader() as config:
+                self.assertFalse(config.has_option("privacy", "password"))
+                self.assertFalse(config.has_option("privacy", "salt"))
+            # now migrate should fail – since there is no password anymore
+            result = self.invoke('keys --migrate-pwd')
+            self.assertEqual(result.exit_code, 1)
+
+    def test_pwdmigration_with_previous_key(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            # generate key
+            result = self.invoke('keys --init')
+            self.assertEqual(result.exit_code, 0)
+            # set password
+            self.git.config(["privacy.password", "foobar"])
+            self.git.config(["privacy.salt", "U16/n+bWLbp/MJ9DEo+Th+bbpJjYMZ7yQSUwJmk0QWQ="])
+            # ... then migrate
+            result = self.invoke('keys --migrate-pwd')
+            self.assertEqual(result.exit_code, 1)  # fails because no confirmation
+            # password and salt config settings are still there
+            with self.repo.config_reader() as config:
+                self.assertTrue(config.has_option("privacy", "password"))
+                self.assertTrue(config.has_option("privacy", "salt"))
+
+    def test_key_activation_deactivation(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            # try disable key without any key present
+            result = self.invoke('keys --disable')
+            self.assertEqual(result.exit_code, 1)
+            # init
+            result = self.invoke('keys --init')
+            self.assertEqual(result.exit_code, 0)
+            self.assertTrue(os.path.isfile(".git/privacy/keys/current"))
+            self.assertFalse(os.path.isfile(".git/privacy/keys/archive/1"))
+            # disable key
+            result = self.invoke('keys --disable')
+            self.assertEqual(result.exit_code, 0)
+            self.assertFalse(os.path.isfile(".git/privacy/keys/current"))
+            self.assertTrue(os.path.isfile(".git/privacy/keys/archive/1"))
+
+    def test_key_renewal(self):
+        current_p = pathlib.Path(".git/privacy/keys/current")
+        archive1_p = pathlib.Path(".git/privacy/keys/archive/1")
+        archive2_p = pathlib.Path(".git/privacy/keys/archive/2")
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            # check renewal without previous key
+            result = self.invoke('keys --new')
+            self.assertEqual(result.exit_code, 1)
+            # generate init key
+            result = self.invoke('keys --init')
+            self.assertEqual(result.exit_code, 0)
+            self.assertTrue(current_p.is_file())
+            self.assertFalse(archive1_p.is_file())
+            old_key = current_p.read_text()
+            # renew key
+            result = self.invoke('keys --new')
+            self.assertEqual(result.exit_code, 0)
+            self.assertTrue(current_p.is_file())
+            self.assertTrue(archive1_p.is_file())
+            a1_key = archive1_p.read_text()
+            self.assertEqual(old_key, a1_key)
+            # test --no-archive
+            result = self.invoke('keys --new --no-archive')
+            self.assertEqual(result.exit_code, 0)
+            self.assertFalse(archive2_p.is_file())
+            # test repeated --init
+            result = self.invoke('keys --init')
+            self.assertEqual(result.exit_code, 1)
 
 
 if __name__ == '__main__':
