@@ -381,7 +381,8 @@ class TestGitPrivacy(unittest.TestCase):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
-            self.git.config(["privacy.password", "passw0ord"])
+            result = self.invoke('keys --init')
+            self.assertEqual(result.exit_code, 0)
             a = self.addCommit("a")
             result = self.invoke('log')
             self.assertEqual(result.exit_code, 0)
@@ -478,7 +479,8 @@ class TestGitPrivacy(unittest.TestCase):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
-            self.git.config(["privacy.password", "passw0ord"])
+            result = self.invoke('keys --init')
+            self.assertEqual(result.exit_code, 0)
             a = self.addCommit("a")
             result = self.invoke('redate --only-head')
             self.assertEqual(result.exit_code, 0)
@@ -499,7 +501,8 @@ class TestGitPrivacy(unittest.TestCase):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
-            self.git.config(["privacy.password", "passw0ord"])
+            result = self.invoke('keys --init')
+            self.assertEqual(result.exit_code, 0)
             a = self.addCommit("a")
             result = self.invoke('redate --only-head')
             self.assertEqual(result.exit_code, 0)
