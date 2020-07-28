@@ -143,9 +143,9 @@ def get_template_dir(repo: git.Repo) -> str:
     if templatedir:
         if os.path.isdir(templatedir):
             return templatedir  # use existing non-default template
-        elif templatedir != default_templatedir:
-            click.confirm(f"Template directory is currently set to "
-                          "non-existing {templatedir}. "
+        if templatedir != default_templatedir:
+            click.confirm("Template directory is currently set to "
+                          f"non-existing {templatedir}. "
                           "Overwrite?", abort=True)
         else:
             # template set to default but folders are missing
