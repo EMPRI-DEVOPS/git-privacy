@@ -14,18 +14,30 @@ from datetime import datetime, timedelta, timezone
 from gitprivacy.gitprivacy import cli, GitPrivacyConfig
 
 
+# make sure no non-local configs are used
+HOME = ".home"
+NO_GLOBAL_CONF_ENV = dict(
+    HOME=HOME,  # ignore global config
+    XDG_CONFIG_HOME="",
+    GIT_CONFIG_NOSYSTEM="yes",  # ignore system config
+)
+
+
 class TestGitPrivacy(unittest.TestCase):
     def setUp(self) -> None:
-        self.runner = CliRunner()
-
-    def setUpRepo(self, templatedir="") -> None:
-        self.git = git.Git()
-        # ignore global templates and hookdir for a clean slate
-        self.git.set_persistent_git_options(
-            c="init.templatedir="+templatedir,
+        self.home = HOME  # only used for templates
+        self.runner = CliRunner(
+            env=NO_GLOBAL_CONF_ENV,
         )
+
+    def setUpRepo(self) -> None:
+        self.git = git.Git()
+        self.git.update_environment(**NO_GLOBAL_CONF_ENV)
         self.git.init()
         self.repo = git.Repo()
+        # set user info
+        self.git.config(["user.name", "John Doe"])
+        self.git.config(["user.email", "jdoe@example.com"])
         # Prevent gitpython from forcing locales to ascii
         lc, code = locale.getlocale()
         if lc and code:
@@ -107,6 +119,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.setUpRepo()
             self.addCommit("a")
             result = self.invoke('redate')
+            self.assertIn("Error: Missing pattern configuration.", result.output)
             self.assertEqual(result.exit_code, 1)
 
     def test_redate(self):
@@ -634,18 +647,13 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(commit.committer.email, repl)
 
     def test_globaltemplate(self):
-        home = ".home"
-        templdir = os.path.join(home, ".git_template")
-        with self.runner.isolated_filesystem(), \
-                self.runner.isolation(env=dict(HOME=home)):
-            os.mkdir(home)
-            self.setUpRepo(templatedir=templdir)
+        templdir = os.path.join(self.home, ".git_template")
+        with self.runner.isolated_filesystem():
+            os.mkdir(self.home)
+            self.setUpRepo()
             self.setConfig()
-            # custom template causes Travis CI to fail finding
-            # usabe user info – set explicitly
-            self.git.config(["user.name", "John Doe"])
-            self.git.config(["user.email", "johndoe@example.com"])
             result = self.invoke('init -g')
+            self.assertEqual(result.exception, None)
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output, os.linesep.join(
                 f"Installed {hook} hook"
@@ -666,7 +674,7 @@ class TestGitPrivacy(unittest.TestCase):
                              a.authored_datetime.replace(minute=0, second=0))
 
             # Now reinit local repo to fetch template hooks
-            self.setUpRepo(templatedir=templdir)
+            self.setUpRepo()
             self.assertTrue(os.access(os.path.join(".git", "hooks", "post-commit"),
                                        os.R_OK | os.X_OK))  # now installed locally too
             self.assertTrue(os.access(os.path.join(".git", "hooks", "pre-commit"),
