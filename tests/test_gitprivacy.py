@@ -1,5 +1,4 @@
 # pylint: disable=invalid-name,too-many-public-methods,line-too-long
-import click
 import copy
 import git  # type: ignore
 import locale
@@ -12,6 +11,7 @@ from click.testing import CliRunner
 from datetime import datetime, timedelta, timezone
 
 from gitprivacy.gitprivacy import cli, GitPrivacyConfig
+import gitprivacy.utils as utils
 
 
 # make sure no non-local configs are used
@@ -46,9 +46,9 @@ class TestGitPrivacy(unittest.TestCase):
             lc_str = "C.UTF-8"
         self.git.update_environment(LANG=lc_str, LC_ALL=lc_str)
 
-    def setUpRemote(self) -> None:
-        r = git.Repo.init("remote", mkdir=True, bare=True)
-        self.remote = self.repo.create_remote("origin", r.working_dir)
+    def setUpRemote(self, name="origin") -> git.Remote:
+        r = git.Repo.init(f"remote_{name}", mkdir=True, bare=True)
+        return self.repo.create_remote(name, r.working_dir)
 
     def setConfig(self) -> None:
         self.git.config(["privacy.pattern", "m,s"])
@@ -243,15 +243,15 @@ class TestGitPrivacy(unittest.TestCase):
     def test_redatewithremote(self):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
-            self.setUpRemote()
+            remote = self.setUpRemote()
             self.setConfig()
             a = self.addCommit("a")
-            self.remote.push(self.repo.active_branch, set_upstream=True)
+            remote.push(self.repo.active_branch, set_upstream=True)
             result = self.invoke('redate')
             self.assertEqual(result.exit_code, 3)
             result = self.invoke('redate -f')
             self.assertEqual(result.exit_code, 0)
-            self.remote.push(force=True)
+            remote.push(force=True)
             b = self.addCommit("b")
             c = self.addCommit("c")
             result = self.invoke('redate')
@@ -267,7 +267,8 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output, os.linesep.join(
                 f"Installed {hook} hook"
-                for hook in ["post-commit", "pre-commit", "post-rewrite"]
+                for hook in ["post-commit", "pre-commit", "post-rewrite",
+                             "pre-push"]
             ) + os.linesep)
             self.assertTrue(os.access(os.path.join(".git", "hooks", "post-commit"),
                                       os.R_OK | os.X_OK))
@@ -285,7 +286,8 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output, os.linesep.join(
                 f"Installed {hook} hook"
-                for hook in ["post-commit", "pre-commit", "post-rewrite"]
+                for hook in ["post-commit", "pre-commit", "post-rewrite",
+                             "pre-push"]
             ) + os.linesep)
             self.assertTrue(os.access(os.path.join(".git", "hooks", "post-commit"),
                                       os.R_OK | os.X_OK))
@@ -657,7 +659,8 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertEqual(result.output, os.linesep.join(
                 f"Installed {hook} hook"
-                for hook in ["post-commit", "pre-commit", "post-rewrite"]
+                for hook in ["post-commit", "pre-commit", "post-rewrite",
+                             "pre-push"]
             ) + os.linesep)
             # local Git repo initialised BEFORE global template was set up
             # hence the hooks are not present and active locally yet
@@ -956,6 +959,131 @@ class TestGitPrivacy(unittest.TestCase):
             # test repeated --init
             result = self.invoke('keys --init')
             self.assertEqual(result.exit_code, 1)
+
+    def test_prepush_check(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            remote = self.setUpRemote()
+            # commit before git-privacy init to produce unredacted ts
+            a = self.addCommit("a")
+            self.setConfig()
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            # try to push them unredacted
+            with self.assertRaises(git.GitCommandError) as cm:
+                self.git.push(
+                    [remote.name, self.repo.active_branch],
+                )
+            self.assertEqual(cm.exception.status, 1)
+            self.assertIn(
+                'You tried to push commits with unredacted timestamps:',
+                cm.exception.stderr,
+            )
+            self.assertIn(a.hexsha, cm.exception.stderr)
+            # make shure no redate base argument is suggested (first commit)
+            self.assertRegex(cm.exception.stderr, r"(?m)git-privacy redate$")
+            # make shure other remote warning is not shown
+            self.assertNotRegex(cm.exception.stderr, r"(?m)^WARNING:")
+            # try to force-push them unredacted – should make no difference
+            with self.assertRaises(git.GitCommandError) as cm:
+                self.git.push(
+                    ["-f", remote.name, self.repo.active_branch],
+                )
+            self.assertEqual(cm.exception.status, 1)
+            self.assertIn(
+                'You tried to push commits with unredacted timestamps:',
+                cm.exception.stderr,
+            )
+            # redate and then push – should work
+            result = self.invoke('redate')
+            self.assertEqual(result.exit_code, 0)
+            ar = self.repo.head.commit
+            res, _stdout, _stderr = self.git.push(
+                [remote.name, self.repo.active_branch],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            # now try with multiple non-initial unredacted commits
+            # ... but remove post-commit hook before to prevent redating
+            os.remove(".git/hooks/post-commit")
+            b = self.addCommit("b")
+            c = self.addCommit("c")
+            with self.assertRaises(git.GitCommandError) as cm:
+                res_tuple = self.git.push(
+                    [remote.name, self.repo.active_branch],
+                    with_extended_output=True,
+                )
+                raise RuntimeError(res_tuple)
+            self.assertEqual(cm.exception.status, 1)
+            self.assertIn(
+                'You tried to push commits with unredacted timestamps:',
+                cm.exception.stderr,
+            )
+            self.assertRegex(cm.exception.stderr, fr"(?m)^{b.hexsha}$")
+            self.assertRegex(cm.exception.stderr, fr"(?m)^{c.hexsha}$")
+            named_redate_base = utils.get_named_ref(ar)
+            self.assertRegex(cm.exception.stderr,
+                             fr"(?m)git-privacy redate {named_redate_base}$")
+            # make shure other remote warning is not shown
+            self.assertNotRegex(cm.exception.stderr, r"(?m)^WARNING:")
+            # again, redate local changes and then push – should work
+            result = self.invoke('redate origin/master')
+            self.assertEqual(result.exit_code, 0)
+            res, _stdout, _stderr = self.git.push(
+                [remote.name, self.repo.active_branch],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            # push to separate remote branch and delete it
+            res, _stdout, _stderr = self.git.push(
+                [remote.name, f"{self.repo.active_branch}:foobar"],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            res, _stdout, _stderr = self.git.push(
+                ["-d", remote.name, "foobar"],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+
+    def test_prepush_check_multiple_remotes(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            r_origin = self.setUpRemote()
+            r_tomato = self.setUpRemote("tomato")
+            # commit before git-privacy init to produce unredacted ts
+            a = self.addCommit("a")
+            b = self.addCommit("b")
+            c = self.addCommit("c")
+            # push to tomato before git-privacy init
+            res, _stdout, _stderr = self.git.push(
+                [r_tomato.name, self.repo.active_branch],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            # setup git-privacy and try to push to origin
+            self.setConfig()
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            # try to push them unredacted – should fail
+            with self.assertRaises(git.GitCommandError) as cm:
+                self.git.push(
+                    [r_origin.name, self.repo.active_branch],
+                )
+            self.assertEqual(cm.exception.status, 1)
+            self.assertIn(
+                'You tried to push commits with unredacted timestamps:',
+                cm.exception.stderr,
+            )
+            self.assertRegex(cm.exception.stderr, fr"(?m)^{a.hexsha}$")
+            self.assertRegex(cm.exception.stderr, fr"(?m)^{b.hexsha}$")
+            self.assertRegex(cm.exception.stderr, fr"(?m)^{c.hexsha}$")
+            # make shure no redate base argument is suggested (first commit)
+            self.assertRegex(cm.exception.stderr, r"(?m)git-privacy redate$")
+            # check for warning about tomato
+            self.assertRegex(cm.exception.stderr, r"(?m)^WARNING:")
+            self.assertRegex(cm.exception.stderr,
+                             fr"(?m)^{r_tomato.name}/{self.repo.active_branch}$")
 
 
 if __name__ == '__main__':

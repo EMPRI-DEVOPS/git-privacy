@@ -16,6 +16,7 @@ from . import GIT_SUBDIR
 from . import crypto as crypt
 from .cli import email
 from .cli import keys
+from .cli import pushcheck
 from .cli.utils import assertCommits
 from .dateredacter import DateRedacter, ResolutionDateRedacter
 from .encoder import (
@@ -129,6 +130,7 @@ def do_init(ctx: click.Context, globally: bool,
     copy_hook(git_dir, "post-commit")
     copy_hook(git_dir, "pre-commit")
     copy_hook(git_dir, "post-rewrite")
+    copy_hook(git_dir, "pre-push")
     # only (over-)write settings if option is explicitly specified
     if timezone_change is not None:
         assert timezone_change in ("warn", "abort")
@@ -474,3 +476,4 @@ def _has_dirtydate(repo: git.Repo, redacter: DateRedacter,
 
 cli.add_command(email.redact_email)
 cli.add_command(keys.manage_keys)
+cli.add_command(pushcheck.check_push)

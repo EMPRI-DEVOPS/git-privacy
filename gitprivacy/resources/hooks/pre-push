@@ -1,0 +1,3 @@
+#!/bin/sh
+
+git-privacy --gitdir "$(git rev-parse --show-toplevel)" pre-push $@
