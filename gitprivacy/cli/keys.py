@@ -24,10 +24,11 @@ KEY_ARCHIVE = os.path.join(KEY_DIR, "archive")
               help="Disable and archive the active key.")
 @click.option('--migrate-pwd', 'mode', flag_value='migrate',
               help="Migrate from password-based encryption.")
-@click.option('--no-archive', is_flag=True,
-              help="No archiving of replaced keys.")
+@click.option('--archive/--no-archive', default=True,
+              show_default=True,
+              help="Archive the replaced key instead of deleting it.")
 @click.pass_context
-def manage_keys(ctx: click.Context, mode: str, no_archive: bool) -> None:
+def manage_keys(ctx: click.Context, mode: str, archive: bool) -> None:
     """Create and manage encryption keys."""
     # pylint: disable=too-many-branches
     repo: git.Repo = ctx.obj.repo
@@ -35,7 +36,6 @@ def manage_keys(ctx: click.Context, mode: str, no_archive: bool) -> None:
     base = repo.git_dir
     _keydir, archivedir = _setup_keydir(base)
     cur_path = os.path.join(base, KEY_CURRENT)
-    archive = not no_archive
 
     # check if previous password settings exist
     crypto = ctx.obj.get_crypto()
