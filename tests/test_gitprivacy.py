@@ -697,8 +697,10 @@ class TestGitPrivacy(unittest.TestCase):
     def does_cherrypick_run_postcommit(self) -> bool:
         with self.runner.isolated_filesystem():
             self.setUpRepo()
-            hookpath = os.path.join(".git", "hooks", "post-commit")
-            os.mkdir(os.path.join(".git", "hooks"))
+            hookdir = os.path.join(".git", "hooks")
+            hookpath = os.path.join(hookdir, "post-commit")
+            if not os.path.exists(hookdir):
+                os.mkdir(hookdir)
             with open(hookpath, "w") as f:
                 f.write("/bin/sh\n\necho DEADBEEF")
             os.chmod(hookpath, 0o755)
