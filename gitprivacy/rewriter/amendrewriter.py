@@ -1,9 +1,7 @@
-import git  # type: ignore
 import os
 import sys
 
 from . import Rewriter
-from ..encoder import Encoder
 from ..utils import fmtdate
 
 
@@ -55,9 +53,3 @@ class AmendRewriter(Rewriter):
     @staticmethod
     def is_already_active() -> bool:
         return os.getenv("GITPRIVACY_ACTIVE") == "yes"
-
-
-    @staticmethod
-    def is_upstream(repo: git.Repo, commit: git.Commit) -> bool:
-        remotes = repo.git.branch(["-r", "--contains", commit.hexsha])
-        return len(remotes) > 0

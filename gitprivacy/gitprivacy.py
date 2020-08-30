@@ -5,10 +5,12 @@ git privacy
 import click
 import git  # type: ignore
 import os
+import shutil
 import stat
 import sys
 
 from datetime import datetime, timezone
+from pkg_resources import resource_stream, resource_string
 from typing import Optional, TextIO, Tuple
 
 
@@ -27,7 +29,7 @@ from .rewriter import AmendRewriter, FilterRepoRewriter
 from .utils import fmtdate
 
 
-class GitPrivacyConfig(object):
+class GitPrivacyConfig:
     SECTION = "privacy"
 
     def __init__(self, gitdir: str) -> None:
@@ -115,11 +117,10 @@ def cli(ctx: click.Context, gitdir):
 @click.option('-g', '--global', "globally", is_flag=True,
               help="Setup a global template instead.")
 @click.option('--timezone-change', type=click.Choice(("warn", "abort")),
-              #default="warn", show_default=True,
               help=("Reaction strategy to detected time zone changes pre commit."
                     " (default: warn)"))
 @click.pass_context
-def do_init(ctx: click.Context, globally: bool, 
+def do_init(ctx: click.Context, globally: bool,
             timezone_change: Optional[str]) -> None:
     """Init git-privacy for this repository."""
     repo = ctx.obj.repo
@@ -162,8 +163,6 @@ def get_template_dir(repo: git.Repo) -> str:
 
 
 def copy_hook(git_path: str, hook: str, ) -> None:
-    from pkg_resources import resource_stream, resource_string
-    import shutil
     hookdir = os.path.join(git_path, "hooks")
     if not os.path.exists(hookdir):
         os.mkdir(hookdir)
@@ -182,7 +181,7 @@ def copy_hook(git_path: str, hook: str, ) -> None:
         return
     else:
         with resource_stream('gitprivacy.resources.hooks', hook) as src, dst:
-            shutil.copyfileobj(src, dst)
+            shutil.copyfileobj(src, dst)  # type: ignore
             os.chmod(dst.fileno(), stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP |
                      stat.S_IROTH | stat.S_IXOTH)  # mode 755
             print("Installed {} hook".format(hook))
@@ -447,7 +446,7 @@ def _parse_post_rewrite_format(line: str) -> Tuple[str, str, str]:
     # <old-sha1> SP <new-sha1> [ SP <extra-info> ] LF
     vals = line.split(" ", maxsplit=2)
     n_vals = len(vals)
-    assert n_vals == 2 or n_vals == 3, "Unexpected post-rewrite format"
+    assert n_vals in (2, 3), "Unexpected post-rewrite format"
     if n_vals == 2:
         # pad to length 3
         vals.append("")

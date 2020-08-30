@@ -9,7 +9,6 @@ from typing import Set
 from . import Rewriter
 from .. import utils
 from ..encoder import Encoder
-from ..dateredacter import DateRedacter
 
 
 class FilterRepoRewriter(Rewriter):
@@ -24,7 +23,7 @@ class FilterRepoRewriter(Rewriter):
     def update(self, commit: git.Commit) -> None:
         self.commits_to_rewrite.add(commit.hexsha)
 
-    def _rewrite(self, commit: fr.Commit, metadata) -> None:
+    def _rewrite(self, commit: fr.Commit, _metadata) -> None:
         hexid = commit.original_id.decode()
         if hexid not in self.commits_to_rewrite:
             # do nothing
@@ -48,11 +47,5 @@ class FilterRepoRewriter(Rewriter):
             '--quiet',
             '--replace-refs', replace_opt,
         ])
-        filter = fr.RepoFilter(args, commit_callback=self._rewrite)
-        filter.run()
-
-
-    @staticmethod
-    def is_upstream(repo: git.Repo, commit: git.Commit) -> bool:
-        remotes = repo.git.branch(["-r", "--contains", commit.hexsha])
-        return len(remotes) > 0
+        rfilter = fr.RepoFilter(args, commit_callback=self._rewrite)
+        rfilter.run()

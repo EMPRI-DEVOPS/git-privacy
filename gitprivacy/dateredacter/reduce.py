@@ -1,7 +1,5 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import re
-import time
-from typing import List, Tuple
 
 from . import DateRedacter
 
@@ -16,7 +14,7 @@ class ResolutionDateRedacter(DateRedacter):
             try:
                 match = re.search('([0-9]+)-([0-9]+)', str(limit))
                 self.limit = (int(match.group(1)), int(match.group(2)))
-            except AttributeError as e:
+            except AttributeError:
                 raise ValueError("Unexpected syntax for limit.")
 
     def redact(self, timestamp: datetime) -> datetime:
