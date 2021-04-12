@@ -9,7 +9,7 @@ import unittest
 
 from click.testing import CliRunner
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Dict, Optional
 
 from gitprivacy.gitprivacy import cli, GitPrivacyConfig
 import gitprivacy.utils as utils
@@ -26,26 +26,33 @@ NO_GLOBAL_CONF_ENV = dict(
 
 class TestGitPrivacy(unittest.TestCase):
     def setUp(self) -> None:
+        os.environ.update(NO_GLOBAL_CONF_ENV)
         self.home = HOME  # only used for templates
-        self.runner = CliRunner(
-            env=NO_GLOBAL_CONF_ENV,
-        )
-
-    def setUpRepo(self) -> None:
-        self.git = git.Git()
-        self.git.update_environment(**NO_GLOBAL_CONF_ENV)
-        self.git.init()
-        self.repo = git.Repo()
-        # set user info
-        self.git.config(["user.name", "John Doe"])
-        self.git.config(["user.email", "jdoe@example.com"])
+        self.runner = CliRunner()
         # Prevent gitpython from forcing locales to ascii
+        os.environ.update(self.getLang())
+
+    @staticmethod
+    def getLang() -> Dict:
         lc, code = locale.getlocale()
         if lc and code:
             lc_str = f"{lc}.{code}"
         else:
             lc_str = "C.UTF-8"
-        self.git.update_environment(LANG=lc_str, LC_ALL=lc_str)
+        return dict(LANG=lc_str, LC_ALL=lc_str)
+
+    def setUpRepo(self) -> None:
+        self.repo = git.Repo.init()
+        self.git = self.repo.git
+        self.configGit(self.git)
+
+    @staticmethod
+    def configGit(gitwrap: git.Git) -> None:
+        # set user info
+        gitwrap.config(["user.name", "John Doe"])
+        gitwrap.config(["user.email", "jdoe@example.com"])
+        # Prevent locale issue when git-privacy is called from hooks
+        gitwrap.update_environment(**TestGitPrivacy.getLang())
 
     def setUpRemote(self, name="origin") -> git.Remote:
         r = git.Repo.init(f"remote_{name}", mkdir=True, bare=True)
@@ -61,8 +68,8 @@ class TestGitPrivacy(unittest.TestCase):
         os.chdir(repo.working_dir)
         with open(filename, "w") as f:
             f.write(filename)
-        self.git.add(filename)
-        res, stdout, stderr = repo.git.commit(
+        repo.git.add(filename)
+        res, _stdout, stderr = repo.git.commit(
             f"-m {filename}",
             with_extended_output=True,
         )
@@ -1109,6 +1116,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertEqual(res, 0)
             # make a clone and push an update there
             clone = git.Repo.clone_from(r.url, "clone")
+            self.configGit(clone.git)
             self.addCommit("b", repo=clone)
             res, _stdout, _stderr = clone.git.push(
                 [r.name, clone.active_branch],
