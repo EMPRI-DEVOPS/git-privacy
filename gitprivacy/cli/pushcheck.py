@@ -34,8 +34,10 @@ def check_push(ctx: click.Context, remote_name: str,
     lines = sys.stdin.readlines()
 
     if len(lines) == 0:
-        # this happens when pushing to a diverging remote without force
+        # this might happen when pushing to a diverging remote without force
         # just let it pass and Git will complain for us
+        # Note: In some cases a diverging remote will NOT cause this effect
+        # hence we cannot rely on sorting out that case here completely.
         ctx.exit(0)
     if len(lines) > 1:
         raise ValueError(f"Unexpected number of lines from stdin\n{lines}")
@@ -58,13 +60,28 @@ def check_push(ctx: click.Context, remote_name: str,
         # all reachable from lhash but not from rhash
         # if l and r diverge it's equivalent to lhash
         # if l is behind r it means refs is empty (all commits reachable)
-        rref_commit = repo.commit(rhash)
-        linear = _is_parent_of(rref_commit, lref_commit)
-        # if not linear we have to assume a force push and thus need to
-        # check all commits reachable from lhash
+        try:
+            rref_commit = repo.commit(rhash)
+        except ValueError:
+            # rhash not found locally, i.e. is not part of local history
+            linear = False
+        else:
+            linear = _is_parent_of(rref_commit, lref_commit)
+
         if not linear:
-            refs = lhash
-            redate_base = ""
+            # r diverges from l – push will fail unless forced
+            # Note: We can only detect force pushes by checking the
+            # arguments of the caller process (e.g., with psutil).
+            # However this is a hack and requires additional dep.
+            # In case of a non-force push displaying unredacted commits
+            # distracts from the diverging issue and the check makes more
+            # sense for the subsequent push (after merge or rebase) anyway.
+            # Force pushes should by far be the rarer case.
+            # Ergo: We warn the user and skip the check at the risk of
+            # missing force pushes ith unredacted commits.
+            click.echo("Detected diverging remote. "
+                       "Skip pre-push check for unredacted commits.", err=True)
+            ctx.exit(0)
         else:
             refs = f"{rhash}..{lhash}"
             redate_base = utils.get_named_ref(rref_commit)

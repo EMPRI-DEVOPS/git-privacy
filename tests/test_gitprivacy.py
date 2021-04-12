@@ -9,6 +9,7 @@ import unittest
 
 from click.testing import CliRunner
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from gitprivacy.gitprivacy import cli, GitPrivacyConfig
 import gitprivacy.utils as utils
@@ -53,16 +54,21 @@ class TestGitPrivacy(unittest.TestCase):
     def setConfig(self) -> None:
         self.git.config(["privacy.pattern", "m,s"])
 
-    def addCommit(self, filename: str) -> git.Commit:
+    def addCommit(self, filename: str, repo: Optional[git.Repo] = None) -> git.Commit:
+        if not repo:
+            repo = self.repo
+        oldcwd = os.getcwd()
+        os.chdir(repo.working_dir)
         with open(filename, "w") as f:
             f.write(filename)
         self.git.add(filename)
-        res, stdout, stderr = self.git.commit(
+        res, stdout, stderr = repo.git.commit(
             f"-m {filename}",
             with_extended_output=True,
         )
         if res != 0:
             raise RuntimeError("Commit failed %s" % stderr)
+        os.chdir(oldcwd)
         # make sure there are no rewrites logged during normal commits
         self.assertNotIn("redate-rewrites", stderr)
         # return a copy to avoid errors caused by the fazy loading of the
@@ -1084,6 +1090,53 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertRegex(cm.exception.stderr, r"(?m)^WARNING:")
             self.assertRegex(cm.exception.stderr,
                              fr"(?m)^{r_tomato.name}/{self.repo.active_branch}$")
+
+    def test_prepush_check_diverging_remote(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            # setup git-privacy
+            self.setConfig()
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            r = self.setUpRemote()
+            # do a common commit
+            self.addCommit("a")
+            # push to remote before cloning
+            res, _stdout, _stderr = self.git.push(
+                [r.name, self.repo.active_branch],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            # make a clone and push an update there
+            clone = git.Repo.clone_from(r.url, "clone")
+            self.addCommit("b", repo=clone)
+            res, _stdout, _stderr = clone.git.push(
+                [r.name, clone.active_branch],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            # make local diverge by adding c
+            self.addCommit("c")
+            # try to push – should fail and warn about skipping
+            with self.assertRaises(git.GitCommandError) as cm:
+                self.git.push(
+                    [r.name, self.repo.active_branch],
+                )
+            self.assertEqual(cm.exception.status, 1)
+            self.assertIn(
+                'Detected diverging remote.',
+                cm.exception.stderr,
+            )
+            # ... now force push. Warning remains
+            res, _stdout, stderr = self.git.push(
+                ["-f", r.name, self.repo.active_branch],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            self.assertIn(
+                'Detected diverging remote.',
+                stderr,
+            )
 
 
 if __name__ == '__main__':
