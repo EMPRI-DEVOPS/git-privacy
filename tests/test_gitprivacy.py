@@ -1038,7 +1038,10 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertNotRegex(cm.exception.stderr, r"(?m)^WARNING:")
             # again, redate local changes and then push – should work
             result = self.invoke('redate origin/master')
+            #self.assertEqual(result.output, "")
             self.assertEqual(result.exit_code, 0)
+            cr = self.repo.head.commit
+            self.assertNotEqual(cr.hexsha, c.hexsha)
             res, _stdout, _stderr = self.git.push(
                 [remote.name, self.repo.active_branch],
                 with_extended_output=True,

@@ -301,7 +301,8 @@ def do_redate(ctx: click.Context, startpoint: str,
             err=True
         )
         ctx.exit(3)
-    with click.progressbar(commits, label="Redating commits") as bar:
+    # add commits in reversed order to rewriter startpoint first, HEAD last
+    with click.progressbar(reversed(commits), label="Redating commits") as bar:
         for commit in bar:
             rewriter.update(commit)
     rewriter.finish()
@@ -324,9 +325,11 @@ def redate_rewrites(ctx: click.Context):
     # determine commits to redate
     with open(rewrites_log_path, "r") as rwlog_fp:
         rwlog = list(map(_parse_post_rewrite_format, rwlog_fp))
-    olds = set(e[0] for e in rwlog)
-    news = set(e[1] for e in rwlog)
-    pending = news.difference(olds)  # ignore already rewritten news
+    olds_set = set(e[0] for e in rwlog)
+    news = [e[1] for e in rwlog]
+    news_set = set(news)
+    pending_set = news_set.difference(olds_set)  # ignore already rewritten news
+    pending = [noid for noid in news if noid in pending_set]
 
     if len(pending) == 0:
         click.echo("No pending rewrites to redact")
