@@ -338,6 +338,26 @@ class TestGitPrivacy(unittest.TestCase):
                 "Warning: Your timezone has changed"))
             self.assertEqual(result.exit_code, 2)
 
+    def test_checkchange_quotedmail(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            email = "johndoe@example.com"
+            email_quoted = f'"{email}"'
+            with self.repo.config_writer() as config:
+                config.set_value("user", "email", email_quoted)
+            self.git.config(["privacy.ignoreTimezone", "false"])  # default is ignore
+            os.environ['TZ'] = 'Europe/London'
+            time.tzset()
+            a = self.addCommit("a")
+            self.assertEqual(a.author.email, email)
+            os.environ['TZ'] = 'Europe/Berlin'
+            time.tzset()
+            result = self.invoke('check')
+            self.assertTrue(result.output.startswith(
+                "Warning: Your timezone has changed"))
+            self.assertEqual(result.exit_code, 2)
+
     def test_checkchangeignore(self):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
@@ -394,7 +414,10 @@ class TestGitPrivacy(unittest.TestCase):
             self.git.config(["user.email", "johndoe@example.com"])
             result = self.invoke('check')
             self.assertEqual(result.exit_code, 0)
-            self.assertEqual(result.output, "")
+            self.assertIn(
+                "info: Skipping tzcheck - no previous commits with this email",
+                result.output,
+            )
 
     def get_real_dates(self, commit):
         import gitprivacy.encoder.msgembed as msgenc

@@ -370,6 +370,10 @@ def do_check(ctx: click.Context):
         ctx.exit(2)
 
 
+def _sanitize_config_email(email: str) -> str:
+    return email.strip("'\"")
+
+
 @cli.command('tzcheck')
 @click.pass_context
 def check_timezone_changes(ctx: click.Context) -> bool:
@@ -378,7 +382,9 @@ def check_timezone_changes(ctx: click.Context) -> bool:
     if not repo.head.is_valid():
         return False  # no previous commits
     with repo.config_reader() as cr:
-        user_email = cr.get_value("user", "email", "")
+        user_email = _sanitize_config_email(
+            cr.get_value("user", "email", "")
+        )
     if not user_email:
         click.echo("No user email set.", err=True)
         ctx.exit(128)
@@ -388,6 +394,7 @@ def check_timezone_changes(ctx: click.Context) -> bool:
     )
     last_commit = next(user_commits, None)
     if last_commit is None:
+        click.echo("info: Skipping tzcheck - no previous commits with this email", err=True)
         return False  # no previous commits by this user
     current_tz = datetime.now(timezone.utc).astimezone().tzinfo
     if last_commit.author.email == user_email:
