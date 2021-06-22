@@ -253,7 +253,7 @@ by the user. It should not be altered by the user.
 Author and committer timestamps are part of the commit object and therefore part of
 the input that determines the commit hash (the commit's SHA1 value).
 Consequently, every modification to a timestamp changes the commit hash.
-And since Git uses hash chains, it also changes all commits that build an that
+And since Git uses hash chains, it also changes all commits that build on that
 commit, i.e., that have it as an ancestor.
 
 Example: Consider the commit sequence `a<-b<-c`. If you now redate `b`,
