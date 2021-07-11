@@ -38,7 +38,14 @@ class BasicEncoder(Encoder):
         new_msg = ""  # signifies no change to old message
         if isinstance(msg_extra, str):
             if msg_extra:
-                new_msg = "\n".join((commit.message, msg_extra))
+                linesep = "\n"
+                if commit.message.endswith(linesep):
+                    sep = linesep
+                else:
+                    # make sure there is a blank line separating
+                    # orig message and the extra
+                    sep = linesep * 2
+                new_msg = commit.message + sep + msg_extra
         elif callable(msg_extra):
             rpl_msg = msg_extra(commit.message)  # pylint: disable=not-callable
             if rpl_msg != commit.message:
