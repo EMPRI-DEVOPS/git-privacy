@@ -664,12 +664,15 @@ class TestGitPrivacy(unittest.TestCase):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
+            name = "John Doe"
             email = "privat@example.com"
             repl = "public@example.com"
+            self.git.config(["user.name", name])
             self.git.config(["user.email", email])
             a = self.addCommit("a")
+            self.assertEqual(a.author.name, name)
             self.assertEqual(a.author.email, email)
-            result = self.invoke(f'redact-email {email}:{repl}:baz')
+            result = self.invoke(f'redact-email {email}:{repl}:too:many')
             self.assertEqual(result.exit_code, 2)
             result = self.invoke(f'redact-email {email}:{repl}')
             self.assertEqual(result.exit_code, 0)
@@ -678,8 +681,18 @@ class TestGitPrivacy(unittest.TestCase):
             self.assertFalse(email in result.output)
             self.assertTrue(repl in result.output)
             commit = self.repo.head.commit
+            self.assertEqual(commit.author.name, name)
             self.assertEqual(commit.author.email, repl)
             self.assertEqual(commit.committer.email, repl)
+            # replace back and change name
+            new_name = "Doe, John"
+            result = self.invoke(f'redact-email {repl}:{email}:"{new_name}"')
+            self.assertEqual(result.exit_code, 0)
+            commit = self.repo.head.commit
+            self.assertEqual(commit.author.name, new_name)
+            self.assertEqual(commit.author.email, email)
+            self.assertEqual(commit.committer.name, new_name)
+            self.assertEqual(commit.committer.email, email)
 
     def test_globaltemplate(self):
         templdir = os.path.join(self.home, ".git_template")

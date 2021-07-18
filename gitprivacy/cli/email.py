@@ -1,5 +1,5 @@
 import click
-from typing import List
+from typing import List, Tuple
 
 from .utils import assertCommits
 
@@ -7,15 +7,21 @@ from .utils import assertCommits
 class EmailRedactParamType(click.ParamType):
     name = 'emailredact'
 
-    def convert(self, value, param, ctx):
+    def convert(self, value, param, ctx) -> Tuple[str, str, str]:
         if ":" in value:
             try:
-                old, new = value.split(":")
-                return (old, new)
+                old, new = value.split(":", maxsplit=1)
+                name = ""
+                if ":" in new:
+                    new, name = new.split(":")
+                return (old, new, name)
             except ValueError:
-                self.fail('%s is not in the format old-email[:new-email]' % value, param, ctx)
-        else:
-            return (value, "")
+                self.fail(
+                    f'{value} is not in the format '
+                    'old-email[:new-email[:new-name]]',
+                    param, ctx,
+                )
+        return (value, "", "")
 
 
 EMAIL_REDACT = EmailRedactParamType()
@@ -31,7 +37,9 @@ GHNOREPLY = "{username}@users.noreply.github.com"
               help="Interpret custom replacements as GitHub usernames"
                    " and construct noreply addresses.")
 @click.pass_context
-def redact_email(ctx: click.Context, addresses: List[str], replacement: str,
+def redact_email(ctx: click.Context,
+                 addresses: List[Tuple[str, str, str]],
+                 replacement: str,
                  use_ghnoreply: bool) -> None:
     """Redact email addresses from existing commits."""
     if not addresses:
@@ -43,22 +51,25 @@ def redact_email(ctx: click.Context, addresses: List[str], replacement: str,
     env_cmd = ""
     with click.progressbar(addresses,
                            label="Redacting emails") as bar:
-        for old, new in bar:
+        for old, new, name in bar:
             if new and use_ghnoreply:
                 new = GHNOREPLY.format(username=new)
             if not new:
                 new = replacement
-            env_cmd += (
-                f"if test \"$GIT_COMMITTER_EMAIL\" = \"{old}\"; then "
-                f"export GIT_COMMITTER_EMAIL=\"{new}\"; "
-                "fi; "
-                f"if test \"$GIT_AUTHOR_EMAIL\" = \"{old}\"; then "
-                f"export GIT_AUTHOR_EMAIL=\"{new}\"; "
-                "fi; "
-            )
+            env_cmd += get_env_cmd("COMMITTER", old, new, name)
+            env_cmd += get_env_cmd("AUTHOR", old, new, name)
     filter_cmd = ["git", "filter-branch", "-f",
                   "--env-filter", env_cmd,
                   "--",
                   "HEAD"]
     repo.git.execute(command=filter_cmd)
 
+
+def get_env_cmd(role: str, old: str, new: str, name: str) -> str:
+    name_env = f'GIT_{role}_NAME="{name}"'
+    return (
+        f'if test "$GIT_{role}_EMAIL" = "{old}"; then '
+        f'export GIT_{role}_EMAIL="{new}" '
+        f'{name_env if name else ""}; '
+        'fi; '
+    )
