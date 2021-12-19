@@ -286,9 +286,10 @@ def do_redate(ctx: click.Context, startpoint: str,
             rev = f"{startpoint}..HEAD"
         else:
             rev = "HEAD"
-            # Enforce validity of user-defined startpoint
-            # to give proper feedback
-            repo.commit(startpoint)
+            if startpoint:
+                # Enforce validity of user-defined startpoint
+                # to give proper feedback
+                repo.commit(startpoint)
         commits = list(repo.iter_commits(rev))
     except (git.GitCommandError, git.BadName):
         click.echo(f"bad revision '{startpoint}'", err=True)
