@@ -280,6 +280,9 @@ def do_redate(ctx: click.Context, startpoint: str,
     single_commit = next(repo.head.commit.iter_parents(), None) is None
     try:
         if startpoint and not single_commit:
+            if not repo.is_ancestor(startpoint, "HEAD"):
+                click.echo("Startpoint not reachable from HEAD", err=True)
+                ctx.exit(128)
             rev = f"{startpoint}..HEAD"
         else:
             rev = "HEAD"
