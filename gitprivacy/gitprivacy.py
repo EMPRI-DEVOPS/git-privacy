@@ -182,7 +182,7 @@ def copy_hook(git_path: str, hook: str, ) -> None:
     else:
         with resource_stream('gitprivacy.resources.hooks', hook) as src, dst:
             shutil.copyfileobj(src, dst)  # type: ignore
-            os.chmod(dst.fileno(), stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP |
+            os.chmod(hook_fn, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP |
                      stat.S_IROTH | stat.S_IXOTH)  # mode 755
             print("Installed {} hook".format(hook))
 
