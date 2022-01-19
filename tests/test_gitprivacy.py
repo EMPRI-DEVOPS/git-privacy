@@ -1182,6 +1182,32 @@ class TestGitPrivacy(unittest.TestCase):
                 stderr,
             )
 
+    def test_prepush_check_multiple_tags(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            # setup git-privacy
+            self.setConfig()
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            r = self.setUpRemote()
+            # make some commits and tags
+            self.addCommit("a")
+            self.repo.create_tag("tag_a")
+            self.addCommit("b")
+            self.repo.create_tag("tag_b")
+            # push to remote before cloning
+            res, _stdout, _stderr = self.git.push(
+                [r.name, self.repo.active_branch],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            # ... now push all tags
+            res, _stdout, stderr = self.git.push(
+                ["--tags", r.name, self.repo.active_branch],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+
 
 if __name__ == '__main__':
     unittest.main()

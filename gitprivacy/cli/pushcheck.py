@@ -29,7 +29,6 @@ def check_push(ctx: click.Context, remote_name: str,
     """
     del remote_name
     del remote_location
-    repo = ctx.obj.repo
     # read references from stdin (cf. githooks)
     lines = sys.stdin.readlines()
 
@@ -39,17 +38,21 @@ def check_push(ctx: click.Context, remote_name: str,
         # Note: In some cases a diverging remote will NOT cause this effect
         # hence we cannot rely on sorting out that case here completely.
         ctx.exit(0)
-    if len(lines) > 1:
-        raise ValueError(f"Unexpected number of lines from stdin\n{lines}")
 
+    for line in lines:
+        check_push_line(ctx, line)
+
+
+
+def check_push_line(ctx: click.Context, line: str) -> None:
     # stdin format:
     # <local ref> SP <local sha1> SP <remote ref> SP <remote sha1> LF
-    lref, lhash, _rref, rhash = lines[0].strip().split(" ")
-
+    lref, lhash, _rref, rhash = line.strip().split(" ")
     if lref == "(delete)":
         assert lhash == NULL_HEX_SHA
         ctx.exit(0)  # allow deletes in any case
 
+    repo = ctx.obj.repo
     lref_commit = repo.commit(lhash)
     if rhash == NULL_HEX_SHA:  # remote is empty
         refs = lhash  # all commits reachalbe from lhash
