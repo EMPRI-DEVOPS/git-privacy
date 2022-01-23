@@ -9,6 +9,7 @@ import gitprivacy.utils as utils
 
 
 NULL_HEX_SHA = '0000000000000000000000000000000000000000'
+TAG_PREFIX = "refs/tags/"
 
 
 @click.command('pre-push', hidden=True)
@@ -27,7 +28,6 @@ def check_push(ctx: click.Context, remote_name: str,
     target) already contain a version of those unredated commits and will thus
     diverge after a redate.
     """
-    del remote_name
     del remote_location
     # read references from stdin (cf. githooks)
     lines = sys.stdin.readlines()
@@ -40,11 +40,11 @@ def check_push(ctx: click.Context, remote_name: str,
         ctx.exit(0)
 
     for line in lines:
-        check_push_line(ctx, line)
+        check_push_line(ctx, remote_name, line)
 
 
 
-def check_push_line(ctx: click.Context, line: str) -> None:
+def check_push_line(ctx: click.Context, remote_name: str, line: str) -> None:
     # stdin format:
     # <local ref> SP <local sha1> SP <remote ref> SP <remote sha1> LF
     lref, lhash, _rref, rhash = line.strip().split(" ")
@@ -104,27 +104,38 @@ def check_push_line(ctx: click.Context, line: str) -> None:
                 found_dirty = True
             click.echo(commit.hexsha, err=True)
 
+    if not found_dirty:
+        # all is redacted and fine – allow push
+        ctx.exit(0)
+
+    # Allow pushing tags that appear dirty but are not
+    # because lref is already on the remote.
+    # Rational: The dates are already public, ergo: no additional harm.
+    if lref.startswith(TAG_PREFIX):
+        if list_containing_branches(repo, lhash, f"{remote_name}/*"):
+            # lref is already on this remote - allow
+            ctx.exit(0)
+
+    # Alert about dirty commits and abort push
+    redate_param = f" {redate_base}" if redate_base else ""
+    click.echo("\nTo redact and redate run:\n"
+               f"\tgit-privacy redate{redate_param}",
+               err=True)
+
     # get potential remote branches containing revs
     rbranches = list_containing_remote_branches(repo, refs)
-
-    if found_dirty:
-        redate_param = f" {redate_base}" if redate_base else ""
-        click.echo("\nTo redact and redate run:\n"
-                   f"\tgit-privacy redate{redate_param}",
-                   err=True)
-        if rbranches:
-            click.echo(click.wrap_text(
-                "\nWARNING: Those commits seem to be part of the following"
-                " remote branches."
-                " After a redate your local history will diverge from them:\n"
-            ), err=True)
-            click.echo("\n".join(rbranches), err=True)
-            click.echo(click.wrap_text(
-                "\nNote: To push them without a redate pass the '--no-verify'"
-                " option to git push."
-            ), err=True)
-        ctx.exit(1)
-    ctx.exit(0)
+    if rbranches:
+        click.echo(click.wrap_text(
+            "\nWARNING: Those commits seem to be part of the following"
+            " remote branches."
+            " After a redate your local history will diverge from them:\n"
+        ), err=True)
+        click.echo("\n".join(rbranches), err=True)
+        click.echo(click.wrap_text(
+            "\nNote: To push them without a redate pass the '--no-verify'"
+            " option to git push."
+        ), err=True)
+    ctx.exit(1)
 
 
 def _is_parent_of(commit: git.Commit, child: git.Commit) -> bool:
@@ -140,6 +151,7 @@ def list_containing_remote_branches(repo: git.Repo, revs: str) -> List[str]:
     return list(branches)
 
 
-def list_containing_branches(repo: git.Repo, hexsha: str) -> List[str]:
-    out = repo.git.branch(["-r", "--contains", hexsha])
+def list_containing_branches(repo: git.Repo, hexsha: str,
+                             pattern="*") -> List[str]:
+    out = repo.git.branch(["-r", "--contains", hexsha, pattern])
     return [b.strip() for b in out.splitlines()]

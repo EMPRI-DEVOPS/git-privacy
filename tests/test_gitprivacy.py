@@ -1195,7 +1195,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.repo.create_tag("tag_a")
             self.addCommit("b")
             self.repo.create_tag("tag_b")
-            # push to remote before cloning
+            # push to remote
             res, _stdout, _stderr = self.git.push(
                 [r.name, self.repo.active_branch],
                 with_extended_output=True,
@@ -1204,6 +1204,42 @@ class TestGitPrivacy(unittest.TestCase):
             # ... now push all tags
             res, _stdout, stderr = self.git.push(
                 ["--tags", r.name, self.repo.active_branch],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+
+    def test_prepush_check_ignore_public_dirty(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            # make unredacted commit
+            r = self.setUpRemote()
+            self.addCommit("init")
+            res, _stdout, _stderr = self.git.push(
+                [r.name, self.repo.active_branch],
+                with_extended_output=True,
+            )
+            self.addCommit("a")
+            # setup git-privacy
+            self.setConfig()
+            result = self.invoke('init')
+            self.assertEqual(result.exit_code, 0)
+            # make a tag tags
+            self.repo.create_tag("tag_a")
+            # fail pushing dirty tag (before commit is public)
+            with self.assertRaises(git.GitCommandError) as cm:
+                self.git.push(
+                    [r.name, "tag_a"],
+                )
+            self.assertEqual(cm.exception.status, 1)
+            # ... now push commits (ignoring push checks)
+            res, _stdout, _stderr = self.git.push(
+                ["--no-verify", r.name, self.repo.active_branch],
+                with_extended_output=True,
+            )
+            self.assertEqual(res, 0)
+            # ... now successfully pushing dirty tag
+            res, _stdout, _stderr = self.git.push(
+                [r.name, "tag_a"],
                 with_extended_output=True,
             )
             self.assertEqual(res, 0)
