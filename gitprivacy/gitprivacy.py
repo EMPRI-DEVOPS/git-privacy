@@ -488,5 +488,6 @@ def _has_dirtydate(repo: git.Repo, redacter: DateRedacter,
 
 
 cli.add_command(email.redact_email)
+cli.add_command(email.list_email)
 cli.add_command(keys.manage_keys)
 cli.add_command(pushcheck.check_push)

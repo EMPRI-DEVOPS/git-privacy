@@ -1,4 +1,5 @@
 import click
+from collections import Counter
 from typing import List, Tuple
 
 from .utils import assertCommits
@@ -73,3 +74,31 @@ def get_env_cmd(role: str, old: str, new: str, name: str) -> str:
         f'{name_env if name else ""}; '
         'fi; '
     )
+
+
+@click.command('list-email')
+@click.option('-a', '--all', 'check_all', is_flag=True,
+              help="Include all local references.")
+@click.option('-e', '--email-only', is_flag=True,
+              help="Only consider actors' email address when counting contributions.")
+@click.pass_context
+def list_email(ctx: click.Context, check_all: bool, email_only: bool) -> None:
+    """List all author and committer identities."""
+    assertCommits(ctx)
+    repo = ctx.obj.repo
+    commits = repo.iter_commits("HEAD" if not check_all else "--all")
+    authors: Counter[str] = Counter()
+    committers: Counter[str] = Counter()
+    if email_only:
+        to_str = lambda a: a.email
+    else:
+        to_str = _actor_to_str
+    for commit in commits:
+        authors[to_str(commit.author)] += 1
+        committers[to_str(commit.committer)] += 1
+    total = authors + committers
+    for actor in sorted(total):
+        print(f"{actor} (total: {total[actor]}, author: {authors[actor]}, committer: {committers[actor]})")
+
+def _actor_to_str(actor):
+    return f"{actor.name} <{actor.email}>"
