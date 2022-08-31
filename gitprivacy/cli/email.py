@@ -43,6 +43,7 @@ def redact_email(ctx: click.Context,
                  replacement: str,
                  use_ghnoreply: bool) -> None:
     """Redact email addresses from existing commits."""
+    ctx.obj.assert_repo()
     if not addresses:
         return  # nothing to do
 

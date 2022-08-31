@@ -3,6 +3,7 @@ import click
 
 def assertCommits(ctx: click.Context) -> None:
     """Assert that the current ref has commits."""
+    ctx.obj.assert_repo()
     head = ctx.obj.repo.head
     if not head.is_valid():
         click.echo(

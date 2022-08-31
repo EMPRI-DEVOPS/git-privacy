@@ -37,7 +37,13 @@ class GitPrivacyConfig:
         try:
             self.repo = git.Repo(gitdir, search_parent_directories=True)
         except git.InvalidGitRepositoryError as e:
-            raise click.UsageError("not a git repository: '{}'".format(e))
+            self.repo = None
+        else:
+            self.read_config()
+
+
+    def read_config(self):
+        self.assert_repo()
         with self.repo.config_reader() as config:
             self.mode = config.get_value(self.SECTION, 'mode', 'reduce')
             self.pattern = config.get_value(self.SECTION, 'pattern', '')
@@ -49,7 +55,12 @@ class GitPrivacyConfig:
             self.replace = bool(config.get_value(
                 self.SECTION, 'replacements', False))
 
+    def assert_repo(self):
+        if not self.repo:
+            raise click.UsageError("not a git repository: '{}'".format(self.gitdir))
+
     def get_crypto(self) -> Optional[crypt.EncryptionProvider]:
+        self.assert_repo()
         if self.password:
             if not self.salt:
                 self.salt = crypt.PasswordSecretBox.generate_salt()
@@ -62,6 +73,7 @@ class GitPrivacyConfig:
         return None
 
     def get_decrypto(self) -> Optional[crypt.DecryptionProvider]:
+        self.assert_repo()
         # try to get a EncryptionProvider, then fallback to DecryptionProvider
         crypto = self.get_crypto()
         if crypto:
@@ -70,6 +82,7 @@ class GitPrivacyConfig:
         return crypt.MultiSecretDecryptor(keyarchive=archive)
 
     def get_dateredacter(self) -> DateRedacter:
+        self.assert_repo()
         if self.mode == "reduce" and self.pattern == '':
             raise click.ClickException(click.wrap_text(
                 "Missing pattern configuration. Set a reduction pattern using\n"  # noqa: E501
@@ -84,11 +97,13 @@ class GitPrivacyConfig:
 
     def write_config(self, **kwargs):
         """Write config"""
+        self.assert_repo()
         with self.repo.config_writer(config_level='repository') as writer:
             for key, value in kwargs.items():
                 writer.set_value(self.SECTION, key, value)
 
     def comment_out_password_options(self):
+        self.assert_repo()
         with self.repo.config_writer() as config:
             if self.password:
                 config.remove_option(self.SECTION, 'password')
@@ -123,6 +138,7 @@ def cli(ctx: click.Context, gitdir):
 def do_init(ctx: click.Context, globally: bool,
             timezone_change: Optional[str]) -> None:
     """Init git-privacy for this repository."""
+    ctx.obj.assert_repo()
     repo = ctx.obj.repo
     if globally:
         git_dir = get_template_dir(repo)
@@ -360,6 +376,7 @@ def redate_rewrites(ctx: click.Context):
 @click.pass_context
 def do_check(ctx: click.Context):
     """Pre-commit checks."""
+    ctx.obj.assert_repo()
     # check for setup up redaction patterns
     ctx.obj.get_dateredacter()  # raises errors if pattern is missing
     # check for timezone changes
@@ -382,6 +399,7 @@ def _sanitize_config_email(email: str) -> str:
 @click.pass_context
 def check_timezone_changes(ctx: click.Context) -> bool:
     """Check for timezone change since last commit."""
+    ctx.obj.assert_repo()
     repo = ctx.obj.repo
     if not repo.head.is_valid():
         return False  # no previous commits
@@ -421,6 +439,7 @@ def check_timezone_changes(ctx: click.Context) -> bool:
 @click.pass_context
 def log_rewrites(ctx: click.Context, rewrites: TextIO, type: str):
     """Log rewrites for later redating of necessary."""
+    ctx.obj.assert_repo()
     # check if post-rewrites is triggered as result of AmendRewriter
     if AmendRewriter.is_already_active():
         # no need to log own amends

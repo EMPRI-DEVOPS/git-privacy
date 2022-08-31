@@ -1244,6 +1244,23 @@ class TestGitPrivacy(unittest.TestCase):
             )
             self.assertEqual(res, 0)
 
+    def test_help_commands(self):
+        with self.runner.isolated_filesystem():
+            subcmds = cli.list_commands(None)
+            for cmd in subcmds:
+                with self.subTest(cmd):
+                    # check if help info is displayed without error
+                    # in a directory with no repo
+                    result = self.invoke(f"{cmd} -h")
+                    self.assertEqual(result.exit_code, 0)
+                    # check if repo assertions are added everywhere
+                    # to gracefully inform about lack of repo
+                    # just invoke each subcommand and make sure no exception is
+                    # raised
+                    result = self.invoke(cmd)
+                    if result.exception:
+                        self.assertIsInstance(result.exception, SystemExit, cmd)
+
 
 if __name__ == '__main__':
     unittest.main()
