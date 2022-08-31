@@ -6,7 +6,7 @@ with open('README.md') as f:
 
 setup(
     name='gitprivacy',
-    version='2.2.0',
+    version='2.3.0',
     description='Git wrapper redacting author and committer dates.',
     long_description=README,
     long_description_content_type="text/markdown",
