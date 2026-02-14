@@ -5,12 +5,12 @@ git privacy
 import click
 import git  # type: ignore
 import os
+import importlib.resources
 import shutil
 import stat
 import sys
 
 from datetime import datetime, timezone
-from pkg_resources import resource_stream, resource_string
 from typing import Optional, TextIO, Tuple
 
 
@@ -178,15 +178,16 @@ def get_template_dir(repo: git.Repo) -> str:
     return templatedir
 
 
-def copy_hook(git_path: str, hook: str, ) -> None:
+def copy_hook(git_path: str, hook: str) -> None:
     hookdir = os.path.join(git_path, "hooks")
     if not os.path.exists(hookdir):
         os.mkdir(hookdir)
     hook_fn = os.path.join(hookdir, hook)
+    hook_res = importlib.resources.files('gitprivacy.resources.hooks') / hook
     try:
         dst = open(hook_fn, "xb")
     except FileExistsError:
-        hook_txt = resource_string('gitprivacy.resources.hooks', hook).decode()
+        hook_txt = hook_res.read_text(encoding='utf-8')
         with open(hook_fn, "r") as f:
             if f.read() == hook_txt:
                 print(f"{hook} hook is already installed at {hook_fn}.")
@@ -196,12 +197,11 @@ def copy_hook(git_path: str, hook: str, ) -> None:
               f"hook:\n\n{hook_txt}")
         return
     else:
-        with resource_stream('gitprivacy.resources.hooks', hook) as src, dst:
-            shutil.copyfileobj(src, dst)  # type: ignore
+        with hook_res.open('rb') as src, dst:
+            shutil.copyfileobj(src, dst)
             os.chmod(hook_fn, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP |
                      stat.S_IROTH | stat.S_IXOTH)  # mode 755
             print("Installed {} hook".format(hook))
-
 
 @cli.command('log')
 @click.option('-r', '--revision-range', required=False, default='HEAD',

@@ -586,8 +586,10 @@ class TestGitPrivacy(unittest.TestCase):
 
 
     def load_exported_commit(self, path):
-        from pkg_resources import resource_stream
-        with resource_stream('tests', path) as input_fd:
+        from importlib.resources import files
+
+        resource_path = files('tests') / path
+        with resource_path.open('rb') as input_fd:
             res, stdout, stderr = self.git.fast_import(
                 "--force",  # discard existing commits
                 istream=input_fd,
