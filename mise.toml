@@ -22,7 +22,7 @@ run = "pytest tests/"
 
 [tasks.lint]
 description = "Lint the code"
-run = "ruff check gitprivacy/"
+run = "ruff check ."
 
 [tasks.info]
 description = "Print project information"
