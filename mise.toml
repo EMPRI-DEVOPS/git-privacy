@@ -13,9 +13,9 @@ uv = "latest"
 ruff = "latest"
 
 [tasks.install]
-description = "Install dependencies"
+description = "Install dependencies and install git-privacy in venv in editable mode (necessary for tests)"
 alias = "i"
-run = "uv pip install -r requirements.txt requirements-dev.txt"
+run = "uv pip install -r requirements.txt -r requirements-dev.txt -e ."
 
 [tasks.test]
 description = "Run tests"
