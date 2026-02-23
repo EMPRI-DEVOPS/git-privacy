@@ -9,6 +9,7 @@ _.python.venv = { path = ".venv", create = true }
 
 [tools]
 python = "{{ get_env(name='PYTHON_VERSION', default='3.14') }}"
+uv = "latest"
 ruff = "latest"
 
 [tasks.install]
