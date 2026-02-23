@@ -11,11 +11,16 @@ _.python.venv = { path = ".venv", create = true }
 python = "{{ get_env(name='PYTHON_VERSION', default='3.14') }}"
 uv = "latest"
 ruff = "latest"
+ty = "latest"
 
 [tasks.install]
 description = "Install dependencies and install git-privacy in venv in editable mode (necessary for tests)"
 alias = "i"
 run = "uv pip install -r requirements.txt -r requirements-dev.txt -e ."
+
+[tasks.lsp]
+description = "Start the ty language server"
+run = "ty server"
 
 [tasks.test]
 description = "Run tests"
