@@ -119,6 +119,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
 @click.group(context_settings=CONTEXT_SETTINGS)
+@click.version_option(None, "--version", "-v")
 @click.option('--gitdir', default=os.getcwd,
               type=click.Path(exists=True, file_okay=False, dir_okay=True,
                               readable=True),
