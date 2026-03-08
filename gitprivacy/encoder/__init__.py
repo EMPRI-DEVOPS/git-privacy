@@ -70,4 +70,5 @@ class BasicDecoder(Decoder):
                 commit.committed_datetime)
 
 
-from .msgembed import MessageEmbeddingEncoder as MessageEmbeddingEncoder, MessageEmbeddingDecoder as MessageEmbeddingDecoder
+from .msgembed import MessageEmbeddingEncoder as MessageEmbeddingEncoder # noqa: E402
+from .msgembed import MessageEmbeddingDecoder as MessageEmbeddingDecoder # noqa: E402
