@@ -8,7 +8,6 @@ from .secretbox import SecretBox
 class PasswordSecretBox(SecretBox):
     """NaCl SecretBox with secret derived from password."""
     def __init__(self, salt: str, password: str) -> None:
-        # pylint: disable=super-init-not-called
         enckey = self.derive_key(password, salt)
         self._box = secret.SecretBox(enckey)
 

@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name,too-many-public-methods,line-too-long
 import copy
 import git  # type: ignore
 import locale

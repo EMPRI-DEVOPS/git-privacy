@@ -30,7 +30,6 @@ KEY_ARCHIVE = os.path.join(KEY_DIR, "archive")
 @click.pass_context
 def manage_keys(ctx: click.Context, mode: str, archive: bool) -> None:
     """Create and manage encryption keys."""
-    # pylint: disable=too-many-branches
     ctx.obj.assert_repo()
     repo: git.Repo = ctx.obj.repo
     gpm._create_git_subdir(repo)
