@@ -70,4 +70,4 @@ class BasicDecoder(Decoder):
                 commit.committed_datetime)
 
 
-from .msgembed import MessageEmbeddingEncoder, MessageEmbeddingDecoder
+from .msgembed import MessageEmbeddingEncoder as MessageEmbeddingEncoder, MessageEmbeddingDecoder as MessageEmbeddingDecoder

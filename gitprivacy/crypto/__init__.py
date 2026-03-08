@@ -16,7 +16,7 @@ class EncryptionProvider(DecryptionProvider):
         """Encrypts data and returns an Base64-encoded string"""
 
 
-from .secretbox import SecretBox
-from .secretbox import MultiSecretBox
-from .secretbox import MultiSecretDecryptor
-from .passwordsecretbox import PasswordSecretBox
+from .secretbox import SecretBox as SecretBox
+from .secretbox import MultiSecretBox as MultiSecretBox
+from .secretbox import MultiSecretDecryptor as MultiSecretDecryptor
+from .passwordsecretbox import PasswordSecretBox as PasswordSecretBox

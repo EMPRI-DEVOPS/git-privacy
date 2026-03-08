@@ -10,4 +10,4 @@ class DateRedacter(abc.ABC):
         """Redact timestamp."""
 
 
-from .reduce import ResolutionDateRedacter
+from .reduce import ResolutionDateRedacter as ResolutionDateRedacter

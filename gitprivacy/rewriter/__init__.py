@@ -14,5 +14,5 @@ class Rewriter(abc.ABC):
         self.replace = replace
 
 
-from .amendrewriter import AmendRewriter
-from .filterrewriter import FilterRepoRewriter
+from .amendrewriter import AmendRewriter as AmendRewriter
+from .filterrewriter import FilterRepoRewriter as FilterRepoRewriter
