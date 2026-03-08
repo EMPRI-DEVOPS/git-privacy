@@ -91,7 +91,8 @@ def list_email(ctx: click.Context, check_all: bool, email_only: bool) -> None:
     authors: Counter[str] = Counter()
     committers: Counter[str] = Counter()
     if email_only:
-        to_str = lambda a: a.email
+        def to_str(a):
+            return a.email
     else:
         to_str = _actor_to_str
     for commit in commits:
