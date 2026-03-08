@@ -226,7 +226,7 @@ def do_log(ctx: click.Context, revision_range: str, paths: click.Path):
         a_date, c_date = decoder.decode(commit)
         if a_date:
             buf.append(f"Author:   {commit.author.name} <{commit.author.email}>")  # noqa: E501
-            buf.append(click.style(f"Date: {fmtdate(commit.authored_datetime)}",  # noqa: E501)
+            buf.append(click.style(f"Date: {fmtdate(commit.authored_datetime)}",  # noqa: E501
                                    fg='red'))
             buf.append(click.style(f"RealDate: {fmtdate(a_date)}", fg='green'))
         else:
@@ -234,7 +234,7 @@ def do_log(ctx: click.Context, revision_range: str, paths: click.Path):
             buf.append(f"Date:   {fmtdate(commit.authored_datetime)}")
         if c_date:
             buf.append(f"Commit:   {commit.committer.name} <{commit.committer.email}>")  # noqa: E501
-            buf.append(click.style(f"Date: {fmtdate(commit.committed_datetime)}",  # noqa: E501)
+            buf.append(click.style(f"Date: {fmtdate(commit.committed_datetime)}",  # noqa: E501
                                    fg='red'))
             buf.append(click.style(f"RealDate: {fmtdate(c_date)}", fg='green'))
         else:
