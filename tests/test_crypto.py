@@ -1,5 +1,4 @@
 import unittest
-from nacl.exceptions import CryptoError
 
 from gitprivacy.crypto import (PasswordSecretBox, SecretBox, MultiSecretBox,
                                MultiSecretDecryptor)

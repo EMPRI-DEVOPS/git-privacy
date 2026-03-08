@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from gitprivacy.dateredacter import ResolutionDateRedacter
 

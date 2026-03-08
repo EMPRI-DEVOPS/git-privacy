@@ -547,8 +547,6 @@ class TestGitPrivacy(unittest.TestCase):
 
 
     def test_commitdateupdate(self):
-        import gitprivacy.encoder.msgembed as msgenc
-        from gitprivacy import utils
         with self.runner.isolated_filesystem():
             self.setUpRepo()
             self.setConfig()
@@ -650,7 +648,7 @@ class TestGitPrivacy(unittest.TestCase):
             self.git.config(["user.email", email])
             a = self.addCommit("a")
             self.assertEqual(a.author.email, email)
-            result = self.invoke(f'redact-email')
+            result = self.invoke('redact-email')
             self.assertEqual(result.exit_code, 0)
             result = self.invoke(f'redact-email {email}')
             self.assertEqual(result.exit_code, 0)
