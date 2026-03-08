@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 
 from . import DateRedacter
@@ -6,14 +6,36 @@ from . import DateRedacter
 
 class ResolutionDateRedacter(DateRedacter):
     """Resolution reducing timestamp redacter."""
-    def __init__(self, pattern="s", limit=None, mode="reduce"):
+    def __init__(self, pattern="s", limit=None, limit_day=None, mode="reduce"):
         self.mode = mode
         self.pattern = pattern
         self.limit = limit
+        self.limit_days = None
         if limit:
             try:
                 match = re.search('([0-9]+)-([0-9]+)', str(limit))
                 self.limit = (int(match.group(1)), int(match.group(2)))
+            except AttributeError:
+                raise ValueError("Unexpected syntax for limit.")
+        if limit_day:
+            try:
+                limit_day = str(limit_day)
+                match = re.search('^([0-6])-([0-6])$', str(limit_day))
+                if match:
+                    start = int(match.group(1))
+                    end = int(match.group(2))
+                    if start > end:
+                        raise ValueError("Start day can't be after end day for limit_day.")
+                    self.limit_days = list(range(start, end + 1))
+                    self.limit_days = {num: True for num in range(start, end + 1)}
+                else:
+                    limit_days = str(limit_day).split(',')
+                    self.limit_days = {}
+                    for day in limit_days:
+                        day = int(day.strip())
+                        if day < 0 or day > 6:
+                            raise ValueError("Day must be between 0 and 6 for limit_day.")
+                        self.limit_days[day] = True
             except AttributeError:
                 raise ValueError("Unexpected syntax for limit.")
 
@@ -34,6 +56,7 @@ class ResolutionDateRedacter(DateRedacter):
         if "s" in self.pattern:
             timestamp = timestamp.replace(second=0)
         timestamp = self._enforce_limit(timestamp)
+        timestamp = self._enforce_limit_day(timestamp)
         return timestamp
 
     def _enforce_limit(self, timestamp: datetime) -> datetime:
@@ -44,4 +67,20 @@ class ResolutionDateRedacter(DateRedacter):
             timestamp = timestamp.replace(hour=start, minute=0, second=0)
         if timestamp.hour >= end:
             timestamp = timestamp.replace(hour=end, minute=0, second=0)
+        return timestamp
+
+    def _enforce_limit_day(self, timestamp: datetime) -> datetime:
+        if not self.limit_days:
+            return timestamp
+
+        current_weekday = timestamp.weekday()
+        if current_weekday in self.limit_days:
+            return timestamp
+
+        for days_back in range(1, 8): # Maximum 7 days to check all weekdays
+            check_day = (current_weekday - days_back) % 7
+            if check_day in self.limit_days:
+                return timestamp - timedelta(days=days_back)
+
+        # This should never happen if limit_days contains at least one weekday
         return timestamp

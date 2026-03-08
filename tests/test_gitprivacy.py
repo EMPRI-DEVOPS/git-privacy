@@ -1094,6 +1094,56 @@ class TestGitPrivacy(unittest.TestCase):
             )
             self.assertEqual(res, 0)
 
+    def test_limithour_config(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.addCommit("a")
+            self.git.config(["privacy.limit", "0-8"])
+            result = self.invoke('redate')
+            self.assertIn("The option privacy.limit is deprecated", result.output)
+            self.assertEqual(result.exit_code, 0)
+            self.addCommit("b")
+            self.git.config(["privacy.limitHour", "0-8"])
+            result = self.invoke('redate')
+            self.assertIn(
+                "Error: Not allowed to use the deprecated",
+                result.output
+            )
+            self.assertEqual(result.exit_code, 1)
+            self.git.config(["--unset", "privacy.limit"])
+            self.git.config(["privacy.limitHour", "invalid"])
+            result = self.invoke('redate')
+            self.assertIn(
+                "Unexpected syntax for limit.",
+                result.output
+            )
+            self.assertEqual(result.exit_code, 1)
+            self.git.config(["privacy.limitHour", "20-24"])
+            result = self.invoke('redate')
+            self.assertEqual(result.exit_code, 0)
+
+    def test_limitweekday_config(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            self.setConfig()
+            self.addCommit("a")
+            self.git.config(["privacy.limitWeekday", "1-0"])
+            result = self.invoke('redate')
+            self.assertIn("Start day can't be after end day for limit_day.", result.output)
+            self.assertEqual(result.exit_code, 1)
+            self.addCommit("b")
+            self.git.config(["privacy.limitWeekday", "0,1,7"])
+            result = self.invoke('redate')
+            self.assertIn(
+                "Day must be between 0 and 6 for limit_day.",
+                result.output
+            )
+            self.assertEqual(result.exit_code, 1)
+            self.git.config(["privacy.limitWeekday", "0, 1, 2,3,4,5,6"])
+            result = self.invoke('redate')
+            self.assertEqual(result.exit_code, 0)
+
     def test_prepush_check_multiple_remotes(self):
         with self.runner.isolated_filesystem():
             self.setUpRepo()

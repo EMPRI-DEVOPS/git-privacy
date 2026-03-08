@@ -58,3 +58,40 @@ class LimitTestCase(unittest.TestCase):
                             hour=17, minute=0, second=0)
         self.assertEqual(ts.limit, (9, 17))
         self.assertEqual(ts._enforce_limit(full), expected)
+
+class LimitDayTestCase(unittest.TestCase):
+    def test_allowed_day(self):
+        ts = ResolutionDateRedacter(limit_day="0,1")
+        full = datetime(year=2026, month=2, day=16,
+                        hour=8, minute=42, second=15)
+        expected = datetime(year=2026, month=2, day=16,
+                            hour=8, minute=42, second=15)
+        self.assertEqual(ts.limit_days, {0: True, 1: True})
+        self.assertEqual(ts._enforce_limit_day(full), expected)
+
+    def test_no_wrap(self):
+        ts = ResolutionDateRedacter(limit_day="0, 1")
+        full = datetime(year=2026, month=2, day=22,
+                            hour=17, minute=42, second=15)
+        expected = datetime(year=2026, month=2, day=17,
+                            hour=17, minute=42, second=15)
+        self.assertEqual(ts.limit_days, {0: True, 1: True})
+        self.assertEqual(ts._enforce_limit_day(full), expected)
+
+    def test_wrap_weekday(self):
+        ts = ResolutionDateRedacter(limit_day="1")
+        full = datetime(year=2026, month=2, day=16,
+                        hour=8, minute=42, second=15)
+        expected = datetime(year=2026, month=2, day=10,
+                            hour=8, minute=42, second=15)
+        self.assertEqual(ts.limit_days, {1: True})
+        self.assertEqual(ts._enforce_limit_day(full), expected)
+
+    def test_interval(self):
+        ts = ResolutionDateRedacter(limit_day="0-4")
+        full = datetime(year=2026, month=2, day=18,
+                        hour=8, minute=42, second=15)
+        expected = datetime(year=2026, month=2, day=18,
+                            hour=8, minute=42, second=15)
+        self.assertEqual(ts.limit_days, {0: True, 1: True, 2: True, 3: True, 4: True})
+        self.assertEqual(ts._enforce_limit_day(full), expected)
