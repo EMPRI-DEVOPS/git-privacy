@@ -1,5 +1,7 @@
 import sys
+import os
 
+from datetime import datetime
 from typing import List, Optional, Set
 
 import click
@@ -10,6 +12,9 @@ import gitprivacy.utils as utils
 
 NULL_HEX_SHA = '0000000000000000000000000000000000000000'
 TAG_PREFIX = "refs/tags/"
+
+DISABLE_UNREDACTED = 'GITPRIVACY_DISABLE_PREPUSH_UNREDACTED'
+DISABLE_LIMITS     = 'GITPRIVACY_DISABLE_PREPUSH_LIMITS'
 
 
 @click.command('pre-push', hidden=True)
@@ -27,8 +32,12 @@ def check_push(ctx: click.Context, remote_name: str,
     It is also lists if and which remote branches (other than the push
     target) already contain a version of those unredated commits and will thus
     diverge after a redate.
+
+    If privacy.limit and/or privacy.limitDay is set pushes are aborted if they
+    happen outside of those limits.
     """
     del remote_location
+    check_limits(ctx)
     # read references from stdin (cf. githooks)
     lines = sys.stdin.readlines()
 
@@ -39,9 +48,32 @@ def check_push(ctx: click.Context, remote_name: str,
         # hence we cannot rely on sorting out that case here completely.
         ctx.exit(0)
 
+    check_unredacted(ctx, remote_name, lines)
+
+
+def check_limits(ctx: click.Context) -> None:
+    if os.environ.get(DISABLE_LIMITS):
+        return
+    if utils.is_outside_limit(ctx.obj.get_dateredacter(), datetime.now()):
+        click.echo(click.wrap_text(
+            """
+WARNING: You're trying to push outside of the datetime limits configured for
+git-privacy. Pushing to a remote might create timestamps on the git forge.
+            """), err=True)
+        click.echo(click.wrap_text(
+            "\nNote: To disable the limit check set the environment variable"
+            f" {DISABLE_LIMITS} to a non-empty value."), err=True)
+        click.echo(click.wrap_text(
+            "\nDANGEROUS: To push without any checks pass the '--no-verify' option"
+            " to git push."), err=True)
+        ctx.exit(1)
+
+
+def check_unredacted(ctx: click.Context, remote_name: str, lines: list[str]):
+    if os.environ.get(DISABLE_UNREDACTED):
+        return
     for line in lines:
         check_push_line(ctx, remote_name, line)
-
 
 
 def check_push_line(ctx: click.Context, remote_name: str, line: str) -> None:
@@ -132,8 +164,12 @@ def check_push_line(ctx: click.Context, remote_name: str, line: str) -> None:
         ), err=True)
         click.echo("\n".join(rbranches), err=True)
         click.echo(click.wrap_text(
-            "\nNote: To push them without a redate pass the '--no-verify'"
-            " option to git push."
+            "\nNote: To push them without a redate pass set the environment"
+            f" variable {DISABLE_UNREDACTED} to a non-empty value.\n"
+        ), err=True)
+        click.echo(click.wrap_text(
+            "DANGEROUS: To push without any checks pass the '--no-verify'"
+            " option to git push.\n"
         ), err=True)
     ctx.exit(1)
 

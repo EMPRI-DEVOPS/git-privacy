@@ -47,7 +47,18 @@ class GitPrivacyConfig:
         with self.repo.config_reader() as config:
             self.mode = config.get_value(self.SECTION, 'mode', 'reduce')
             self.pattern = config.get_value(self.SECTION, 'pattern', '')
-            self.limit = config.get_value(self.SECTION, 'limit', '')
+            self.limit = config.get_value(self.SECTION, "limitHour", config.get_value(self.SECTION, 'limit', ''))
+            if config.get_value(self.SECTION, 'limit', False):
+                click.echo(click.wrap_text(
+                    'The option privacy.limit is deprecated and will be removed in future versions.'
+                    'Use privacy.limitHour instead.'
+                ))
+            if config.get_value(self.SECTION, 'limit', False) and config.get_value(self.SECTION, 'limitHour', False):
+                click.echo(click.wrap_text(
+                    'Not allowed to use the deprecated privacy.limit and privacy.limitHour at the same time.'
+                    'Only use privacy.limitHour instead.'
+                ))
+            self.limitDay = config.get_value(self.SECTION, "limitWeekday", '')
             self.password = config.get_value(self.SECTION, 'password', '')
             self.salt = config.get_value(self.SECTION, 'salt', '')
             self.ignoreTimezone = bool(config.get_value(
@@ -93,7 +104,7 @@ class GitPrivacyConfig:
                 "following time unit identifiers: "
                 "M: month, d: day, h: hour, m: minute, s: second.",
                 preserve_paragraphs=True))
-        return ResolutionDateRedacter(self.pattern, self.limit, self.mode)
+        return ResolutionDateRedacter(self.pattern, self.limit, self.limitDay, self.mode)
 
     def write_config(self, **kwargs):
         """Write config"""

@@ -40,6 +40,14 @@ def is_already_redacted(redacter: dateredacter.DateRedacter,
     return False
 
 
+def is_outside_limit(redacter: dateredacter.DateRedacter,
+                     time: datetime):
+    """Check if the timestamp is within the set limits"""
+    limited = redacter.enforce_limits(time)
+    if limited != time:
+        return True
+    return False
+
 def get_named_ref(commit: git.Commit) -> str:
     """Get a user-friendly named ref for the commit."""
     _hexsha, name = commit.name_rev.split(" ")

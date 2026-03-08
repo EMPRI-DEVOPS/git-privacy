@@ -1094,6 +1094,63 @@ class TestGitPrivacy(unittest.TestCase):
             )
             self.assertEqual(res, 0)
 
+    def test_prepush_limit_weekday_check(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            remote = self.setUpRemote()
+            # commit before git-privacy init to produce unredacted ts
+            self.addCommit("a")
+            self.setConfig()
+            self.git.config(["privacy.limitWeekday", str((datetime.now().weekday() - 1) % 7)])
+            self._prepush_limit_check(remote)
+
+    def test_prepush_limit_hour_check(self):
+        with self.runner.isolated_filesystem():
+            self.setUpRepo()
+            remote = self.setUpRemote()
+            # commit before git-privacy init to produce unredacted ts
+            self.addCommit("a")
+            self.setConfig()
+            hour = str((datetime.now().hour - 1) % 24)
+            self.git.config(["privacy.limitHour", f'{hour}-{hour}'])
+            self._prepush_limit_check(remote)
+
+    def _prepush_limit_check(self, remote):
+        result = self.invoke('init')
+        self.assertEqual(result.exit_code, 0)
+        # try to push them unredacted
+        with self.assertRaises(git.GitCommandError) as cm:
+            self.git.push(
+                [remote.name, self.repo.active_branch],
+            )
+        self.assertEqual(cm.exception.status, 1)
+        self.assertIn(
+            'WARNING: You\'re trying to push outside of the datetime limits configured',
+            cm.exception.stderr,
+        )
+        # try to force-push them unredacted – should make no difference
+        with self.assertRaises(git.GitCommandError) as cm:
+            self.git.push(
+                ["--force", remote.name, self.repo.active_branch],
+            )
+        self.assertEqual(cm.exception.status, 1)
+        self.assertIn(
+            'WARNING: You\'re trying to push outside of the datetime limits configured',
+            cm.exception.stderr,
+        )
+        # redate and then push – should not work
+        result = self.invoke('redate')
+        self.assertEqual(result.exit_code, 0)
+        with self.assertRaises(git.GitCommandError) as cm:
+            self.git.push(
+                [remote.name, self.repo.active_branch],
+            )
+        self.assertEqual(cm.exception.status, 1)
+        self.assertIn(
+            'WARNING: You\'re trying to push outside of the datetime limits configured',
+            cm.exception.stderr,
+        )
+
     def test_prepush_check_multiple_remotes(self):
         with self.runner.isolated_filesystem():
             self.setUpRepo()
