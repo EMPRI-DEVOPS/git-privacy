@@ -38,6 +38,7 @@ To setup `git-privacy` for a _single Git repository_ do the following:
       - h: Sets the hour to midnight
       - m: Sets the minute to zero (full hour)
       - s: Sets the seconds to zero (full minute)
+      - z: Normalises the timezone to UTC (offset +00:00)
 
 
        $ git config privacy.pattern <pattern>
@@ -69,6 +70,7 @@ To setup `git-privacy` _globally for all new repositories_ do the following:
       - h: Sets the hour to midnight
       - m: Sets the minute to zero (full hour)
       - s: Sets the seconds to zero (full minute)
+      - z: Normalises the timezone to UTC (offset +00:00)
 
 
        $ git config --global privacy.pattern <pattern>

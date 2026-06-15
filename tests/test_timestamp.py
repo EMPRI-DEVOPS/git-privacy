@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from gitprivacy.dateredacter import ResolutionDateRedacter
 
@@ -38,6 +38,47 @@ class ReduceTestCase(unittest.TestCase):
         expected = datetime(year=2018, month=1, day=18,
                             hour=14, minute=42, second=13)
         self.assertEqual(ts.redact(self.full), expected)
+
+
+class TimezoneTestCase(unittest.TestCase):
+    def setUp(self):
+        # 14:42:13 at UTC+02:00  ==  12:42:13 UTC (same instant)
+        self.cet = datetime(year=2018, month=12, day=18,
+                            hour=14, minute=42, second=13,
+                            tzinfo=timezone(timedelta(hours=2)))
+
+    def test_to_utc(self):
+        ts = ResolutionDateRedacter(mode="reduce", pattern="z")
+        result = ts.redact(self.cet)
+        expected = datetime(year=2018, month=12, day=18,
+                            hour=12, minute=42, second=13,
+                            tzinfo=timezone.utc)
+        self.assertEqual(result, expected)
+        self.assertEqual(result.utcoffset(), timedelta(0))
+
+    def test_preserves_instant(self):
+        ts = ResolutionDateRedacter(mode="reduce", pattern="z")
+        self.assertEqual(ts.redact(self.cet).timestamp(), self.cet.timestamp())
+
+    def test_applied_before_reductions(self):
+        # 01:30 +02:00 -> 2018-12-17 23:30 UTC -> 'h' zeroes the hour -> 00:30 UTC.
+        # The date rolling back to the 17th proves the UTC conversion ran first.
+        ts = ResolutionDateRedacter(mode="reduce", pattern="hz")
+        early = datetime(year=2018, month=12, day=18,
+                         hour=1, minute=30, second=0,
+                         tzinfo=timezone(timedelta(hours=2)))
+        expected = datetime(year=2018, month=12, day=17,
+                            hour=0, minute=30, second=0,
+                            tzinfo=timezone.utc)
+        self.assertEqual(ts.redact(early), expected)
+
+    def test_naive_assumed_utc(self):
+        ts = ResolutionDateRedacter(mode="reduce", pattern="z")
+        naive = datetime(year=2018, month=12, day=18,
+                         hour=14, minute=42, second=13)
+        result = ts.redact(naive)
+        self.assertEqual(result.utcoffset(), timedelta(0))
+        self.assertEqual(result.replace(tzinfo=None), naive)
 
 
 class LimitTestCase(unittest.TestCase):

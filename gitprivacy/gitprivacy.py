@@ -91,7 +91,8 @@ class GitPrivacyConfig:
                 "\n"
                 "The pattern is a comma separated list that may contain the "
                 "following time unit identifiers: "
-                "M: month, d: day, h: hour, m: minute, s: second.",
+                "M: month, d: day, h: hour, m: minute, s: second, "
+                "z: timezone (normalise to UTC).",
                 preserve_paragraphs=True))
         return ResolutionDateRedacter(self.pattern, self.limit, self.mode)
 
